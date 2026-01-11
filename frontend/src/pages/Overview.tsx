@@ -22,7 +22,7 @@ const recentActivity = [
 
 export default function OverviewPage() {
   return (
-    <AppLayout>
+  
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center justify-between">
@@ -202,6 +202,6 @@ export default function OverviewPage() {
           </div>
         </Card>
       </div>
-    </AppLayout>
+    
   );
 }

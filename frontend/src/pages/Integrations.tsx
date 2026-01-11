@@ -175,7 +175,7 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <AppLayout>
+  <>
       <div className="space-y-6">
         {/* Page Header */}
         <div>
@@ -324,6 +324,6 @@ export default function IntegrationsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+    </>
   );
 }

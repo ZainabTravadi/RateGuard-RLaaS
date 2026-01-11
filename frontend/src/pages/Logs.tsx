@@ -63,7 +63,7 @@ export default function LogsPage() {
   };
 
   return (
-    <AppLayout>
+  
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center justify-between">
@@ -200,6 +200,6 @@ export default function LogsPage() {
           </div>
         </Card>
       </div>
-    </AppLayout>
+    
   );
 }

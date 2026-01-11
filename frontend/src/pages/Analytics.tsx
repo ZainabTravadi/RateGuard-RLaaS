@@ -53,7 +53,7 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("24h");
 
   return (
-    <AppLayout>
+ 
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center justify-between">
@@ -243,6 +243,6 @@ export default function AnalyticsPage() {
           </div>
         </Card>
       </div>
-    </AppLayout>
+    
   );
 }

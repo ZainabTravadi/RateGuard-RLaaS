@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { Info, Plus, Shield, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+const API_BASE = "http://localhost:4000";
 
 interface Rule {
   id: string;
@@ -19,94 +27,266 @@ interface Rule {
   tooltip: string;
 }
 
-const initialRules: Rule[] = [
-  {
-    id: "1",
-    name: "Requests per Minute",
-    description: "Maximum requests allowed per minute",
-    limit: 100,
-    window: "1m",
-    scope: "global",
-    enabled: true,
-    tooltip: "Limits the total number of requests per minute. Lower values provide better protection but may affect legitimate users."
-  },
-  {
-    id: "2",
-    name: "Requests per IP",
-    description: "Maximum requests from a single IP address",
-    limit: 50,
-    window: "1m",
-    scope: "endpoint",
-    enabled: true,
-    tooltip: "Prevents individual IPs from overwhelming your service. Useful for preventing DDoS attacks."
-  },
-  {
-    id: "3",
-    name: "Requests per User",
-    description: "Maximum requests per authenticated user",
-    limit: 200,
-    window: "1m",
-    scope: "global",
-    enabled: true,
-    tooltip: "Limits authenticated users. Higher than IP limits since users are verified."
-  },
-  {
-    id: "4",
-    name: "Burst Capacity",
-    description: "Allow temporary burst above normal limits",
-    limit: 150,
-    window: "10s",
-    scope: "service",
-    enabled: false,
-    tooltip: "Allows short bursts of traffic above normal limits. Useful for handling traffic spikes."
-  }
-];
-
 const windowOptions = [
-  { value: "1s", label: "1 second" },
-  { value: "10s", label: "10 seconds" },
-  { value: "1m", label: "1 minute" },
-  { value: "5m", label: "5 minutes" },
-  { value: "1h", label: "1 hour" },
+  { value: "1s", label: "1 second", seconds: 1 },
+  { value: "10s", label: "10 seconds", seconds: 10 },
+  { value: "1m", label: "1 minute", seconds: 60 },
+  { value: "5m", label: "5 minutes", seconds: 300 },
+  { value: "1h", label: "1 hour", seconds: 3600 }
 ];
 
 const scopeOptions = [
   { value: "global", label: "Global" },
   { value: "service", label: "Per Service" },
-  { value: "endpoint", label: "Per Endpoint" },
+  { value: "endpoint", label: "Per Endpoint" }
 ];
 
 export default function RulesPage() {
-  const [rules, setRules] = useState<Rule[]>(initialRules);
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const updateRule = (id: string, updates: Partial<Rule>) => {
-    setRules(rules.map(rule => 
-      rule.id === id ? { ...rule, ...updates } : rule
-    ));
+  const [newRule, setNewRule] = useState({
+    name: "",
+    description: "",
+    limit: 100,
+    window: "1m",
+    scope: "global" as "global" | "service" | "endpoint"
+  });
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token")}`
+  });
+
+  // 🔐 ENVIRONMENT — MUST BE UUID
+  const environmentId = localStorage.getItem("environmentId");
+
+if (!environmentId) {
+  console.error("Missing environmentId");
+}
+
+
+  // =============================
+  // READ
+  // =============================
+  useEffect(() => {
+    if (!environmentId) {
+      console.error("Missing environmentId");
+      setLoading(false);
+      return;
+    }
+
+    const loadRules = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/rules?environmentId=${environmentId}`,
+          { headers: authHeaders() }
+        );
+
+        const data = await res.json();
+
+        if (!Array.isArray(data)) {
+          console.error("Rules API did not return array:", data);
+          setRules([]);
+          return;
+        }
+
+        setRules(
+          data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            limit: r.limit_count,
+            window:
+              windowOptions.find(w => w.seconds === r.window_seconds)?.value ??
+              "1m",
+            scope: r.scope,
+            enabled: r.enabled,
+            tooltip: r.description
+          }))
+        );
+      } catch (err) {
+        console.error("Failed to load rules:", err);
+        setRules([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRules();
+  }, [environmentId]);
+
+  // =============================
+  // TOGGLE — OPTIMISTIC
+  // =============================
+  const toggleRule = async (id: string) => {
+  let nextEnabled: boolean;
+
+  setRules(prev =>
+    prev.map(r => {
+      if (r.id === id) {
+        nextEnabled = !r.enabled;
+        return { ...r, enabled: nextEnabled };
+      }
+      return r;
+    })
+  );
+
+  try {
+    await fetch(
+      `${API_BASE}/rules/${id}/toggle?environmentId=${environmentId}`,
+      { method: "PATCH", headers: authHeaders() }
+    );
+  } catch {
+    // rollback ONLY on failure
+    setRules(prev =>
+      prev.map(r =>
+        r.id === id ? { ...r, enabled: !nextEnabled } : r
+      )
+    );
+  }
+};
+
+
+  // =============================
+  // DELETE
+  // =============================
+  const deleteRule = async (id: string) => {
+  if (!environmentId || environmentId === "null") {
+    alert("Environment not selected. Refresh.");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/rules/${id}?environmentId=${encodeURIComponent(environmentId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // ❗ NO content-type
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Delete failed:", res.status, text);
+      return;
+    }
+
+    setRules(prev => prev.filter(r => r.id !== id));
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+
+
+  // =============================
+  // CREATE
+  // =============================
+  const createRule = async () => {
+    const windowSeconds =
+      windowOptions.find(w => w.value === newRule.window)?.seconds ?? 60;
+
+    const res = await fetch(
+      `${API_BASE}/rules?environmentId=${environmentId}`,
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          environmentId,
+          name: newRule.name || "Custom Rule",
+          description: newRule.description || "",
+          scope: newRule.scope,
+          endpoint: null,
+          limit: newRule.limit,
+          windowSeconds,
+          enabled: true
+        })
+      }
+    );
+
+    const rule = await res.json();
+
+    setRules(prev => [
+      {
+        id: rule.id,
+        name: rule.name,
+        description: rule.description,
+        limit: rule.limit_count,
+        window: newRule.window,
+        scope: rule.scope,
+        enabled: rule.enabled,
+        tooltip: rule.description
+      },
+      ...prev
+    ]);
+
+    setShowCreateModal(false);
+    setNewRule({
+      name: "",
+      description: "",
+      limit: 100,
+      window: "1m",
+      scope: "global"
+    });
   };
 
-  const toggleRule = (id: string) => {
-    setRules(rules.map(rule =>
-      rule.id === id ? { ...rule, enabled: !rule.enabled } : rule
-    ));
+  // =============================
+  // UPDATE
+  // =============================
+  const updateRule = async (id: string, updates: Partial<Rule>) => {
+    let nextRule: Rule | null = null;
+
+    setRules(prev =>
+      prev.map(r => {
+        if (r.id === id) {
+          nextRule = { ...r, ...updates };
+          return nextRule;
+        }
+        return r;
+      })
+    );
+
+    if (!nextRule) return;
+
+    const windowSeconds =
+      windowOptions.find(w => w.value === nextRule.window)?.seconds ?? 60;
+
+    await fetch(
+      `${API_BASE}/rules/${id}?environmentId=${environmentId}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          limit: nextRule.limit,
+          scope: nextRule.scope,
+          windowSeconds
+        })
+      }
+    );
   };
 
-  const deleteRule = (id: string) => {
-    setRules(rules.filter(rule => rule.id !== id));
-  };
-
-  return (
-    <AppLayout>
+  if (loading) {
+    return <p className="text-muted-foreground">Loading rules…</p>;
+  }
+   return (
+      
       <div className="space-y-6">
-        {/* Page Header */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Rules & Policies</h1>
+            <h1 className="text-2xl font-bold text-foreground">
+              Rules & Policies
+            </h1>
             <p className="text-muted-foreground mt-1">
               Configure rate limiting rules for your applications
             </p>
           </div>
-          <Button className="bg-primary hover:bg-primary/90">
+
+          <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Rule
           </Button>
@@ -114,41 +294,63 @@ export default function RulesPage() {
 
         {/* Rules Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {rules.map((rule, index) => (
-            <Card 
-              key={rule.id} 
-              className={`animate-fade-in transition-all duration-300 ${!rule.enabled ? 'opacity-60' : ''}`}
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
+          {rules.map((rule) => (
+            <Card
+             key={rule.id}
+  className={`transition-all duration-200 ${
+  rule.enabled
+    ? "opacity-100"
+    : "opacity-60 bg-muted/30"
+}`}
+>
+
+              {/* Top */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${rule.enabled ? 'bg-primary/10 border-primary/20' : 'bg-muted border-border'} border`}>
-                    <Shield className={`h-5 w-5 ${rule.enabled ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-lg border ${
+                      rule.enabled
+                        ? "bg-primary/10 border-primary/20"
+                        : "bg-muted border-border"
+                    }`}
+                  >
+                    <Shield
+                      className={`h-5 w-5 ${
+                        rule.enabled
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                      }`}
+                    />
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-foreground">{rule.name}</h3>
+                      <h3 className="font-semibold text-foreground">
+                        {rule.name}
+                      </h3>
                       <Tooltip>
                         <TooltipTrigger>
                           <Info className="h-4 w-4 text-muted-foreground" />
                         </TooltipTrigger>
-                        <TooltipContent className="max-w-xs bg-popover border-border">
+                        <TooltipContent>
                           <p className="text-sm">{rule.tooltip}</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-sm text-muted-foreground">{rule.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {rule.description}
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={rule.enabled}
                     onCheckedChange={() => toggleRule(rule.id)}
                   />
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
-                    className="text-muted-foreground hover:text-danger"
                     onClick={() => deleteRule(rule.id)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -156,61 +358,66 @@ export default function RulesPage() {
                 </div>
               </div>
 
+              {/* Controls */}
               <div className="grid grid-cols-3 gap-4">
-                {/* Limit */}
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  <label className="text-xs font-medium text-muted-foreground">
                     Limit
                   </label>
                   <Input
                     type="number"
                     value={rule.limit}
-                    onChange={(e) => updateRule(rule.id, { limit: parseInt(e.target.value) })}
-                    className="bg-muted/50 border-border focus:border-primary"
+                    onChange={e =>
+                      updateRule(rule.id, {
+                        limit: Number(e.target.value)
+                      })
+                    }
                     disabled={!rule.enabled}
                   />
                 </div>
 
-                {/* Time Window */}
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  <label className="text-xs font-medium text-muted-foreground">
                     Time Window
                   </label>
-                  <Select 
-                    value={rule.window} 
-                    onValueChange={(value) => updateRule(rule.id, { window: value })}
+                  <Select
+                    value={rule.window}
+                    onValueChange={value =>
+                      updateRule(rule.id, { window: value })
+                    }
                     disabled={!rule.enabled}
                   >
-                    <SelectTrigger className="bg-muted/50 border-border">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {windowOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                    <SelectContent>
+                      {windowOptions.map(o => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Scope */}
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  <label className="text-xs font-medium text-muted-foreground">
                     Scope
                   </label>
-                  <Select 
-                    value={rule.scope} 
-                    onValueChange={(value: "global" | "service" | "endpoint") => updateRule(rule.id, { scope: value })}
+                  <Select
+                    value={rule.scope}
+                    onValueChange={value =>
+                      updateRule(rule.id, { scope: value as any })
+                    }
                     disabled={!rule.enabled}
                   >
-                    <SelectTrigger className="bg-muted/50 border-border">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover border-border">
-                      {scopeOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                    <SelectContent>
+                      {scopeOptions.map(o => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -218,34 +425,121 @@ export default function RulesPage() {
                 </div>
               </div>
 
-              {/* Status badge */}
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <span className={`badge-pill border ${rule.enabled ? 'status-allowed' : 'bg-muted text-muted-foreground border-border'}`}>
-                    {rule.enabled ? 'Active' : 'Disabled'}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {rule.limit} requests / {windowOptions.find(w => w.value === rule.window)?.label}
-                  </span>
-                </div>
+              {/* Footer */}
+              <div className="mt-4 pt-4 border-t border-border flex justify-between">
+                <span
+  className={`opacity-100 text-xs px-2.5 py-0.5 rounded-full border font-medium ${
+    rule.enabled
+      ? "border-green-500/40 bg-green-500/10 text-green-600"
+      : "border-red-500/40 bg-red-500/10 text-red-600"
+  }`}
+>
+  {rule.enabled ? "Active" : "Disabled"}
+</span>
+
+
+                <span className="text-xs text-muted-foreground">
+                  {rule.limit} requests /{" "}
+                  {
+                    windowOptions.find(w => w.value === rule.window)
+                      ?.label
+                  }
+                </span>
               </div>
             </Card>
           ))}
         </div>
 
-        {/* Empty State for adding new rules */}
-        <Card className="border-dashed border-2 border-border hover:border-primary/50 transition-colors cursor-pointer">
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 border border-primary/20 mb-4">
-              <Plus className="h-6 w-6 text-primary" />
-            </div>
-            <h3 className="font-semibold text-foreground mb-1">Create Custom Rule</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Define custom rate limiting rules tailored to your specific use case
-            </p>
+        {/* CREATE RULE MODAL */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <Card className="w-full max-w-lg p-6">
+              <h2 className="text-lg font-semibold mb-4">
+                Create Custom Rule
+              </h2>
+
+              <div className="space-y-4">
+                <Input
+                  placeholder="Rule Name"
+                  value={newRule.name}
+                  onChange={e =>
+                    setNewRule({ ...newRule, name: e.target.value })
+                  }
+                />
+
+                <Input
+                  placeholder="Description"
+                  value={newRule.description}
+                  onChange={e =>
+                    setNewRule({
+                      ...newRule,
+                      description: e.target.value
+                    })
+                  }
+                />
+
+                <Input
+                  type="number"
+                  placeholder="Limit"
+                  value={newRule.limit}
+                  onChange={e =>
+                    setNewRule({
+                      ...newRule,
+                      limit: Number(e.target.value)
+                    })
+                  }
+                />
+
+                <Select
+                  value={newRule.window}
+                  onValueChange={v =>
+                    setNewRule({ ...newRule, window: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {windowOptions.map(o => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={newRule.scope}
+                  onValueChange={v =>
+                    setNewRule({ ...newRule, scope: v as any })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scopeOptions.map(o => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={createRule}>Create Rule</Button>
+              </div>
+            </Card>
           </div>
-        </Card>
+        )}
       </div>
-    </AppLayout>
-  );
+      
+    );
 }
