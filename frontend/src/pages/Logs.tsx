@@ -1,10 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Search, Filter, Download } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Filter,
+  Download
+} from "lucide-react";
+import { api } from "@/lib/api";
 
 interface LogEntry {
   id: string;
@@ -12,55 +25,102 @@ interface LogEntry {
   ip: string;
   userId: string | null;
   endpoint: string;
-  status: "allowed" | "throttled" | "blocked";
+  status: "allowed" | "blocked";
   rule: string;
   responseTime: number;
 }
 
-const mockLogs: LogEntry[] = [
-  { id: "1", timestamp: "2024-01-15 14:32:45", ip: "192.168.1.45", userId: "user_123", endpoint: "/api/users", status: "allowed", rule: "-", responseTime: 12 },
-  { id: "2", timestamp: "2024-01-15 14:32:44", ip: "10.0.0.122", userId: null, endpoint: "/api/auth/login", status: "throttled", rule: "Requests per IP", responseTime: 8 },
-  { id: "3", timestamp: "2024-01-15 14:32:43", ip: "172.16.0.55", userId: "user_456", endpoint: "/api/products", status: "allowed", rule: "-", responseTime: 15 },
-  { id: "4", timestamp: "2024-01-15 14:32:42", ip: "192.168.1.45", userId: null, endpoint: "/api/auth/login", status: "blocked", rule: "Requests per Minute", responseTime: 5 },
-  { id: "5", timestamp: "2024-01-15 14:32:41", ip: "10.0.0.89", userId: "user_789", endpoint: "/api/orders", status: "allowed", rule: "-", responseTime: 22 },
-  { id: "6", timestamp: "2024-01-15 14:32:40", ip: "172.16.0.12", userId: null, endpoint: "/api/search", status: "throttled", rule: "Burst Capacity", responseTime: 45 },
-  { id: "7", timestamp: "2024-01-15 14:32:39", ip: "192.168.1.100", userId: "user_321", endpoint: "/api/analytics", status: "allowed", rule: "-", responseTime: 18 },
-  { id: "8", timestamp: "2024-01-15 14:32:38", ip: "10.0.0.45", userId: null, endpoint: "/api/auth/login", status: "blocked", rule: "Requests per IP", responseTime: 3 },
-  { id: "9", timestamp: "2024-01-15 14:32:37", ip: "172.16.0.78", userId: "user_654", endpoint: "/api/users", status: "allowed", rule: "-", responseTime: 11 },
-  { id: "10", timestamp: "2024-01-15 14:32:36", ip: "192.168.1.200", userId: null, endpoint: "/api/products", status: "allowed", rule: "-", responseTime: 14 },
-];
-
 export default function LogsPage() {
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const filteredLogs = mockLogs.filter(log => {
-    const matchesSearch = 
-      log.endpoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.ip.includes(searchQuery) ||
-      (log.userId && log.userId.includes(searchQuery));
-    const matchesStatus = statusFilter === "all" || log.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  /* ---------------- FETCH LOGS ---------------- */
+  useEffect(() => {
+    let cancelled = false;
 
+    setLoading(true);
+
+    api(
+      `/logs?search=${encodeURIComponent(
+        searchQuery
+      )}&status=${statusFilter}&page=${currentPage}`
+    )
+      .then((data) => {
+        if (!cancelled) {
+          setLogs(data);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery, statusFilter, currentPage]);
+
+  /* ---------------- EXPORT LOGS TO EXCEL ---------------- */
+  const handleExportLogs = async () => {
+    try {
+      setExporting(true);
+      
+      // Build query string with current filters
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+
+      const token = localStorage.getItem("token");
+      const response = await fetch(`http://localhost:4000/logs/export/excel?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to export logs");
+      }
+
+      // Get the blob and create download link
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `logs_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export logs. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /* ---------------- UI HELPERS ---------------- */
   const getStatusBadge = (status: LogEntry["status"]) => {
-    const statusStyles = {
+    const styles = {
       allowed: "status-allowed",
-      throttled: "status-warning",
-      blocked: "status-blocked",
+      blocked: "status-blocked"
     };
-    const statusLabels = {
+
+    const labels = {
       allowed: "Allowed",
-      throttled: "Throttled",
-      blocked: "Blocked",
+      blocked: "Blocked"
     };
+
     return (
-      <span className={`badge-pill border ${statusStyles[status]}`}>
-        {statusLabels[status]}
+      <span className={`badge-pill border ${styles[status]}`}>
+        {labels[status]}
       </span>
     );
   };
+
 
   return (
   
@@ -73,9 +133,13 @@ export default function LogsPage() {
               View detailed request logs and rate limiting events
             </p>
           </div>
-          <Button variant="outline" className="border-border hover:bg-muted">
+          <Button 
+            onClick={handleExportLogs}
+            disabled={exporting || logs.length === 0}
+            className="bg-primary hover:bg-primary/90"
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export Logs
+            {exporting ? "Exporting..." : "Export Logs"}
           </Button>
         </div>
 
@@ -123,7 +187,7 @@ export default function LogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.map((log) => (
+                {logs.map((log) => (
                   <tr key={log.id} className="table-row">
                     <td className="py-3 px-4">
                       <span className="text-sm font-mono text-muted-foreground">{log.timestamp}</span>
@@ -161,7 +225,7 @@ export default function LogsPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">
             <span className="text-sm text-muted-foreground">
-              Showing {filteredLogs.length} of {mockLogs.length} entries
+              Showing {logs.length} of {logs.length} entries
             </span>
             <div className="flex items-center gap-2">
               <Button

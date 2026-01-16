@@ -100,3 +100,34 @@ export async function deleteRule(ruleId, userId, environmentId) {
 
   return result.rowCount;
 }
+
+/**
+ * UPDATE — limit / window / scope / endpoint
+ */
+export async function updateRule(ruleId, userId, environmentId, updates) {
+  const { rows } = await db.query(
+    `
+    UPDATE rate_limit_rules
+    SET
+      limit_count = $1,
+      window_seconds = $2,
+      scope = $3,
+      endpoint = $4
+    WHERE id = $5
+      AND user_id = $6
+      AND environment_id = $7
+    RETURNING *
+    `,
+    [
+      updates.limit,
+      updates.windowSeconds,
+      updates.scope,
+      updates.endpoint ?? null, // 🔥 THIS WAS MISSING
+      ruleId,
+      userId,
+      environmentId
+    ]
+  );
+
+  return rows[0];
+}

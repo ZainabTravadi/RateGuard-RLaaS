@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Key,
   RefreshCw,
@@ -9,7 +8,6 @@ import {
   EyeOff,
   Plus,
   Trash2,
-  Users,
   Globe,
 } from "lucide-react";
 import api from "@/lib/api";
@@ -29,14 +27,6 @@ interface DisplayKey extends ApiKey {
   fullKey?: string;
 }
 
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: "admin" | "viewer";
-  avatar: string;
-}
-
 interface Environment {
   id: string;
   name: "production" | "development";
@@ -49,26 +39,38 @@ interface Environment {
 export default function SettingsPage() {
   const [apiKeys, setApiKeys] = useState<DisplayKey[]>([]);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null);
 
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [editingEnv, setEditingEnv] = useState<Environment | null>(null);
 
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [inviteOpen, setInviteOpen] = useState(false);
-
   /* ===================== FETCH ===================== */
 
   useEffect(() => {
-    api("/api-keys").then(setApiKeys);
+    fetchApiKeys();
   }, []);
 
   useEffect(() => {
-    api("/environments").then(setEnvironments);
+    fetchEnvironments();
   }, []);
 
-  useEffect(() => {
-    api("/team/members").then(setTeamMembers);
-  }, []);
+  const fetchApiKeys = async () => {
+    try {
+      const data = await api("/api-keys");
+      setApiKeys(data);
+    } catch (err) {
+      console.error("Failed to fetch API keys:", err);
+    }
+  };
+
+  const fetchEnvironments = async () => {
+    try {
+      const data = await api("/environments");
+      setEnvironments(data);
+    } catch (err) {
+      console.error("Failed to fetch environments:", err);
+    }
+  };
 
   /* ===================== API KEYS ===================== */
 
@@ -99,6 +101,7 @@ export default function SettingsPage() {
       },
       ...prev,
     ]);
+    setLastGeneratedId(res.meta?.id || null);
   };
 
   const rotateKey = async (id: string) => {
@@ -120,33 +123,15 @@ export default function SettingsPage() {
     await api(`/api-keys/${id}`, { method: "DELETE" });
   };
 
-  /* ===================== TEAM ===================== */
-
-  const updateMemberRole = async (id: string, role: "admin" | "viewer") => {
-    setTeamMembers(prev =>
-      prev.map(m => (m.id === id ? { ...m, role } : m))
-    );
-
-    await api(`/team/members/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ role }),
-    });
-  };
-
-  const removeMember = async (id: string) => {
-    setTeamMembers(prev => prev.filter(m => m.id !== id));
-    await api(`/team/members/${id}`, { method: "DELETE" });
-  };
-
   /* ===================== RENDER ===================== */
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">
-          Manage API keys, team members, and account settings
+          Manage API keys, environments, and account settings
         </p>
       </div>
 
@@ -233,6 +218,12 @@ export default function SettingsPage() {
                 </Button>
               </div>
 
+              {apiKey.fullKey && apiKey.id === lastGeneratedId && (
+                <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  Copy this API key now, it will not be shown again.
+                </div>
+              )}
+
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>
                   Created: {new Date(apiKey.created_at).toLocaleDateString()}
@@ -304,78 +295,6 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* TEAM MEMBERS */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
-                <Users className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle>Team Members</CardTitle>
-                <CardDescription>
-                  Manage team access and roles
-                </CardDescription>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              className="border-border hover:bg-muted"
-              onClick={() => setInviteOpen(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Invite Member
-            </Button>
-          </div>
-        </CardHeader>
-
-        <div className="space-y-3">
-          {teamMembers.map(member => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 border border-primary/30 text-primary font-medium text-sm">
-                  {member.avatar || member.name.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">{member.name}</p>
-                  <p className="text-sm text-muted-foreground">{member.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Select
-                  value={member.role}
-                  onValueChange={(value: "admin" | "viewer") =>
-                    updateMemberRole(member.id, value)
-                  }
-                >
-                  <SelectTrigger className="w-28 bg-muted/50 border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border-border">
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeMember(member.id)}
-                  className="text-muted-foreground hover:text-danger"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
       {editingEnv && (
         <EditEnvironmentModal
           env={editingEnv}
@@ -384,15 +303,6 @@ export default function SettingsPage() {
             setEnvironments(prev =>
               prev.map(e => (e.id === updatedEnv.id ? updatedEnv : e))
             );
-          }}
-        />
-      )}
-
-      {inviteOpen && (
-        <InviteMemberModal
-          onClose={() => setInviteOpen(false)}
-          onInvited={member => {
-            setTeamMembers(prev => [...prev, member]);
           }}
         />
       )}
@@ -461,77 +371,6 @@ function EditEnvironmentModal({
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             Save
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InviteMemberModal({
-  onClose,
-  onInvited,
-}: {
-  onClose: () => void;
-  onInvited: (member: TeamMember) => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "viewer">("viewer");
-  const [loading, setLoading] = useState(false);
-
-  const handleInvite = async () => {
-    setLoading(true);
-
-    const member = await api("/team/invite", {
-      method: "POST",
-      body: JSON.stringify({ email, role }),
-    });
-
-    onInvited(member);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-      <div className="bg-background rounded-lg border border-border w-full max-w-md p-6">
-        <h2 className="text-lg font-semibold mb-4">
-          Invite Team Member
-        </h2>
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">Email</label>
-            <input
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="user@company.com"
-              className="mt-1 w-full rounded-md border border-border bg-muted/50 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Role</label>
-            <Select
-              value={role}
-              onValueChange={(v: "admin" | "viewer") => setRole(v)}
-            >
-              <SelectTrigger className="mt-1 bg-muted/50 border-border">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-6">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleInvite} disabled={loading || !email}>
-            Invite
           </Button>
         </div>
       </div>

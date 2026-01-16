@@ -1,52 +1,72 @@
-import { useState } from "react";
-import { Bell, ChevronDown, Search, User } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 export function AppHeader() {
-  const [environment, setEnvironment] = useState<"production" | "development">("production");
+  const { user, logout } = useAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+  };
+
+  // Extract user name from email (part before @)
+  const userName = user?.email?.split("@")[0] || "User";
+  const displayName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 backdrop-blur-xl px-6">
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="h-9 w-64 rounded-lg border border-border bg-muted/50 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
-          />
-        </div>
+      {/* Left side - Logo/Brand */}
+      <div className="flex items-center">
+        <h2 className="text-lg font-semibold text-foreground">RateGuard</h2>
       </div>
 
-      {/* Right side */}
+      {/* Right side - User Menu */}
       <div className="flex items-center gap-4">
-        {/* Environment Selector */}
-        <button
-          onClick={() => setEnvironment(environment === "production" ? "development" : "production")}
-          className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm transition-colors hover:bg-muted"
-        >
-          <div className={`h-2 w-2 rounded-full ${environment === "production" ? "bg-success" : "bg-warning"}`} />
-          <span className="font-medium capitalize">{environment}</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </button>
+        {/* User Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 px-3 py-1.5 transition-colors hover:bg-muted"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 border border-primary/30">
+              <User className="h-4 w-4 text-primary" />
+            </div>
+            <span className="text-sm font-medium">{displayName}</span>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
+          </button>
 
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold text-danger-foreground">
-            3
-          </span>
-        </Button>
-
-        {/* User */}
-        <button className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 px-3 py-1.5 transition-colors hover:bg-muted">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 border border-primary/30">
-            <User className="h-4 w-4 text-primary" />
-          </div>
-          <span className="text-sm font-medium">John Doe</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </button>
+          {/* Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-48 rounded-lg border border-border bg-background shadow-lg py-1 z-50">
+              <div className="px-4 py-2 border-b border-border">
+                <p className="text-sm font-medium text-foreground">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -23,6 +23,7 @@ interface Rule {
   limit: number;
   window: string;
   scope: "global" | "service" | "endpoint";
+  endpoint: string | null;
   enabled: boolean;
   tooltip: string;
 }
@@ -51,7 +52,8 @@ export default function RulesPage() {
     description: "",
     limit: 100,
     window: "1m",
-    scope: "global" as "global" | "service" | "endpoint"
+    scope: "global" as "global" | "service" | "endpoint",
+    endpoint: ""
   });
 
   const authHeaders = () => ({
@@ -102,6 +104,7 @@ if (!environmentId) {
               windowOptions.find(w => w.seconds === r.window_seconds)?.value ??
               "1m",
             scope: r.scope,
+            endpoint: r.endpoint,
             enabled: r.enabled,
             tooltip: r.description
           }))
@@ -187,6 +190,11 @@ if (!environmentId) {
   // CREATE
   // =============================
   const createRule = async () => {
+    if (newRule.scope === "endpoint" && !newRule.endpoint.trim()) {
+  alert("Endpoint is required for endpoint-scoped rules");
+  return;
+}
+
     const windowSeconds =
       windowOptions.find(w => w.value === newRule.window)?.seconds ?? 60;
 
@@ -200,7 +208,10 @@ if (!environmentId) {
           name: newRule.name || "Custom Rule",
           description: newRule.description || "",
           scope: newRule.scope,
-          endpoint: null,
+          endpoint:
+            newRule.scope === "endpoint"
+              ? newRule.endpoint
+              : null,
           limit: newRule.limit,
           windowSeconds,
           enabled: true
@@ -218,6 +229,7 @@ if (!environmentId) {
         limit: rule.limit_count,
         window: newRule.window,
         scope: rule.scope,
+        endpoint: rule.endpoint,
         enabled: rule.enabled,
         tooltip: rule.description
       },
@@ -230,7 +242,8 @@ if (!environmentId) {
       description: "",
       limit: 100,
       window: "1m",
-      scope: "global"
+      scope: "global",
+      endpoint: ""
     });
   };
 
@@ -238,22 +251,22 @@ if (!environmentId) {
   // UPDATE
   // =============================
   const updateRule = async (id: string, updates: Partial<Rule>) => {
-    let nextRule: Rule | null = null;
+    let updated: Rule | null = null;
 
     setRules(prev =>
       prev.map(r => {
         if (r.id === id) {
-          nextRule = { ...r, ...updates };
-          return nextRule;
+          updated = { ...r, ...updates };
+          return updated;
         }
         return r;
       })
     );
 
-    if (!nextRule) return;
+    if (!updated) return;
 
     const windowSeconds =
-      windowOptions.find(w => w.value === nextRule.window)?.seconds ?? 60;
+      windowOptions.find(w => w.value === updated.window)?.seconds ?? 60;
 
     await fetch(
       `${API_BASE}/rules/${id}?environmentId=${environmentId}`,
@@ -261,8 +274,12 @@ if (!environmentId) {
         method: "PATCH",
         headers: authHeaders(),
         body: JSON.stringify({
-          limit: nextRule.limit,
-          scope: nextRule.scope,
+          limit: updated.limit,
+          scope: updated.scope,
+          endpoint:
+            updated.scope === "endpoint"
+              ? updated.endpoint
+              : null, // 🔥 clear endpoint if scope changes
           windowSeconds
         })
       }
@@ -424,6 +441,32 @@ if (!environmentId) {
                   </Select>
                 </div>
               </div>
+              {/* 🔥 Endpoint binding UI — ADD THIS HERE */}
+{rule.scope === "endpoint" && (
+  <div className="mt-4">
+    <label className="text-xs font-medium text-muted-foreground">
+      Endpoint
+    </label>
+    <Input
+  placeholder="/api/login"
+  value={rule.endpoint ?? ""}
+  onChange={e =>
+    setRules(prev =>
+      prev.map(r =>
+        r.id === rule.id
+          ? { ...r, endpoint: e.target.value }
+          : r
+      )
+    )
+  }
+  onBlur={() =>
+    updateRule(rule.id, { endpoint: rule.endpoint })
+  }
+  disabled={!rule.enabled}
+/>
+
+  </div>
+)}
 
               {/* Footer */}
               <div className="mt-4 pt-4 border-t border-border flex justify-between">
@@ -514,6 +557,25 @@ if (!environmentId) {
                     setNewRule({ ...newRule, scope: v as any })
                   }
                 >
+                  {/* 🔥 Endpoint input (only when scope = endpoint) */}
+{newRule.scope === "endpoint" && (
+  <div>
+    <label className="text-xs font-medium text-muted-foreground">
+      Endpoint
+    </label>
+    <Input
+      placeholder="/api/login"
+      value={newRule.endpoint}
+      onChange={e =>
+        setNewRule({ ...newRule, endpoint: e.target.value })
+      }
+    />
+    <p className="text-xs text-muted-foreground mt-1">
+      Must match the exact request path (e.g. /api/login)
+    </p>
+  </div>
+)}
+
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

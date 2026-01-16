@@ -1,38 +1,74 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Plug,
   Shield,
   BarChart3,
   FileText,
-  Bell,
   Settings,
   Zap,
 } from "lucide-react";
+import api from "@/lib/api";
 
 const navigation = [
-  { name: "Overview", href: "/", icon: LayoutDashboard },
-  { name: "Integrations", href: "/integrations", icon: Plug },
-  { name: "Rules & Policies", href: "/rules", icon: Shield },
-  { name: "Traffic Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Logs", href: "/logs", icon: FileText },
-  { name: "Alerts", href: "/alerts", icon: Bell },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Overview", href: "/app", icon: LayoutDashboard },
+  { name: "Integrations", href: "/app/integrations", icon: Plug },
+  { name: "Rules & Policies", href: "/app/rules", icon: Shield },
+  { name: "Traffic Analytics", href: "/app/analytics", icon: BarChart3 },
+  { name: "Logs", href: "/app/logs", icon: FileText },
+  { name: "Settings", href: "/app/settings", icon: Settings },
 ];
+
+interface SystemStatus {
+  status: "operational" | "degraded";
+  uptimePercentage: number;
+  message: string;
+}
 
 export function AppSidebar() {
   const location = useLocation();
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>({
+    status: "operational",
+    uptimePercentage: 100,
+    message: "All systems operational",
+  });
+
+  useEffect(() => {
+    const fetchSystemStatus = async () => {
+      try {
+        const response = await api("/system-status");
+        if (response?.success && response?.data) {
+          setSystemStatus({
+            ...response.data,
+            uptimePercentage: Number(response.data.uptimePercentage) || 100,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch system status:", error);
+      }
+    };
+
+    fetchSystemStatus();
+    
+    // Refresh every 60 seconds
+    const interval = setInterval(() => {
+      fetchSystemStatus();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-sidebar">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-border px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
-          <Zap className="h-5 w-5 text-primary" />
+    <aside className="w-64 flex-shrink-0 overflow-y-auto border-r border-border bg-card text-card-foreground flex flex-col">
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
+          <Zap className="h-5 w-5" />
         </div>
-        <div>
-          <span className="text-lg font-semibold text-foreground">RateGuard</span>
-          <span className="ml-1 text-xs text-muted-foreground">Pro</span>
+        <div className="leading-tight">
+          <div className="text-base font-semibold text-foreground">RateGuard</div>
+          <div className="text-xs text-muted-foreground">API protection</div>
         </div>
       </div>
 
@@ -40,10 +76,12 @@ export function AppSidebar() {
       <nav className="flex flex-col gap-1 p-4">
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
+          
           return (
             <NavLink
               key={item.name}
               to={item.href}
+              end={item.href === "/app"}
               className={`nav-item ${isActive ? "active" : ""}`}
             >
               <item.icon className="h-5 w-5" />
@@ -54,14 +92,28 @@ export function AppSidebar() {
       </nav>
 
       {/* Bottom section */}
-      <div className="absolute bottom-0 left-0 right-0 border-t border-border p-4">
+      <div className="border-t border-border p-4 mt-auto">
         <div className="rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            <span className="text-xs font-medium text-success">All systems operational</span>
+            <div 
+              className={`h-2 w-2 rounded-full ${
+                systemStatus.status === "operational" 
+                  ? "bg-success animate-pulse" 
+                  : "bg-warning"
+              }`} 
+            />
+            <span 
+              className={`text-xs font-medium ${
+                systemStatus.status === "operational" 
+                  ? "text-success" 
+                  : "text-warning"
+              }`}
+            >
+              {systemStatus.message}
+            </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            99.99% uptime this month
+            {systemStatus.uptimePercentage.toFixed(2)}% uptime this month
           </p>
         </div>
       </div>

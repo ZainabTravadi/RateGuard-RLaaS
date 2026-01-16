@@ -3,6 +3,7 @@ import {
   createRule,
   toggleRule,
   deleteRule,
+  updateRule
 } from "./rules.service.js";
 
 export async function getRules(req, reply) {
@@ -66,4 +67,24 @@ export async function deleteRuleHandler(req, reply) {
   }
 
   reply.code(204).send();
+}
+
+export async function updateRuleHandler(req, reply) {
+  const { id } = req.params;
+  const { limit, scope, endpoint, windowSeconds } = req.body;
+  const { environmentId } = req.query;
+
+  const rule = await updateRule(
+    id,
+    req.user.userId,
+    environmentId,
+    {
+      limit,
+      scope,
+      endpoint,       // 🔥 MUST BE PASSED
+      windowSeconds
+    }
+  );
+
+  reply.send(rule);
 }

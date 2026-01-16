@@ -5,9 +5,11 @@ export async function api(
   options: RequestInit = {}
 ) {
   const token = localStorage.getItem("token");
+  const workspaceId = localStorage.getItem("workspaceId");
 
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
     ...(options.headers as Record<string, string>),
   };
 

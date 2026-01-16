@@ -8,15 +8,21 @@ import { AuthProvider } from "@/context/AuthContext";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 
+import LandingPage from "./pages/Landing";
 import Overview from "./pages/Overview";
 import Integrations from "./pages/Integrations";
+import NodeIntegration from "./pages/NodeIntegration";
+import ComingSoon from "./pages/ComingSoon";
 import Rules from "./pages/Rules";
 import Analytics from "./pages/Analytics";
 import Logs from "./pages/Logs";
-import Alerts from "./pages/Alerts";
+import DocsPage from "./pages/Docs";
+
 import Settings from "./pages/Settings";
 import LoginPage from "./pages/login";
 import SignupPage from "./pages/signup";
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,13 +38,17 @@ export default function App() {
           <AuthProvider>
             <Routes>
 
-              {/* PUBLIC */}
+              {/* PUBLIC ROUTES */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/docs" element={<DocsPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* PROTECTED */}
+              {/* PROTECTED APP ROUTES */}
               <Route
-                path="/"
+                path="/app"
                 element={
                   <RequireAuth>
                     <AppLayout>
@@ -49,7 +59,18 @@ export default function App() {
               />
 
               <Route
-                path="/rules"
+                path="/app/dashboard"
+                element={
+                  <RequireAuth>
+                    <AppLayout>
+                      <Overview />
+                    </AppLayout>
+                  </RequireAuth>
+                }
+              />
+
+              <Route
+                path="/app/rules"
                 element={
                   <RequireAuth>
                     <AppLayout>
@@ -60,7 +81,7 @@ export default function App() {
               />
 
               <Route
-                path="/integrations"
+                path="/app/integrations"
                 element={
                   <RequireAuth>
                     <AppLayout>
@@ -71,7 +92,29 @@ export default function App() {
               />
 
               <Route
-                path="/analytics"
+                path="/app/integrations/nodejs"
+                element={
+                  <RequireAuth>
+                    <AppLayout>
+                      <NodeIntegration />
+                    </AppLayout>
+                  </RequireAuth>
+                }
+              />
+
+              <Route
+                path="/app/integrations/coming-soon"
+                element={
+                  <RequireAuth>
+                    <AppLayout>
+                      <ComingSoon />
+                    </AppLayout>
+                  </RequireAuth>
+                }
+              />
+
+              <Route
+                path="/app/analytics"
                 element={
                   <RequireAuth>
                     <AppLayout>
@@ -82,7 +125,7 @@ export default function App() {
               />
 
               <Route
-                path="/logs"
+                path="/app/logs"
                 element={
                   <RequireAuth>
                     <AppLayout>
@@ -93,18 +136,7 @@ export default function App() {
               />
 
               <Route
-                path="/alerts"
-                element={
-                  <RequireAuth>
-                    <AppLayout>
-                      <Alerts />
-                    </AppLayout>
-                  </RequireAuth>
-                }
-              />
-
-              <Route
-                path="/settings"
+                path="/app/settings"
                 element={
                   <RequireAuth>
                     <AppLayout>

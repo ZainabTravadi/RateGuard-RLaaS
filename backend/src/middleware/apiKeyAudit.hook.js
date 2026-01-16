@@ -9,6 +9,7 @@ export async function apiKeyAuditHook(req, reply) {
     await logApiUsage({
       apiKeyId: req.apiKey.id,
       userId: req.apiKey.userId,
+      ruleId: req.rateLimit?.ruleId ?? null,
       method: req.method,
       endpoint: req.routerPath || req.url,
       statusCode: reply.statusCode,

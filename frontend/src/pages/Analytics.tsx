@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +14,8 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts";
+import { api } from "@/lib/api";
+
 
 const timeSeriesData = [
   { time: "00:00", rps: 120, allowed: 115, blocked: 5 },
@@ -51,6 +53,20 @@ const topEndpoints = [
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("24h");
+
+  // 🔥 replace static data with state
+  const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
+  const [allowedVsBlockedData, setAllowedVsBlockedData] = useState<any[]>([]);
+  const [topEndpoints, setTopEndpoints] = useState<any[]>([]);
+
+  // 🔥 ADD useEffect HERE (before return)
+  useEffect(() => {
+    api(`/analytics?range=${timeRange}`).then((res) => {
+      setTimeSeriesData(res.timeSeries);
+      setAllowedVsBlockedData(res.allowedVsBlocked);
+      setTopEndpoints(res.topEndpoints);
+    });
+  }, [timeRange]);
 
   return (
  

@@ -91,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ====================== */
   const login = async (token: string) => {
     localStorage.setItem("token", token);
+    // Reset any workspace override on new login
+    localStorage.removeItem("workspaceId");
 
     const res = await fetch(`${API}/auth/me`, {
       headers: {
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("environmentId");
+    localStorage.removeItem("workspaceId");
     setUser(null);
     window.location.href = "/login";
   };

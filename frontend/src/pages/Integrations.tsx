@@ -1,15 +1,7 @@
-import { useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
-import { Check, Copy, ExternalLink, X } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Integration {
   id: string;
@@ -165,17 +157,19 @@ const { allowed, remaining } = await response.json();`,
 ];
 
 export default function IntegrationsPage() {
-  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
+  const navigate = useNavigate();
 
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+  const handleIntegrationClick = (integration: Integration) => {
+    if (integration.id === "nodejs") {
+      navigate("/app/integrations/nodejs");
+    } else {
+      navigate("/app/integrations/coming-soon", {
+        state: { name: integration.name, icon: integration.icon }
+      });
+    }
   };
 
   return (
-  <>
       <div className="space-y-6">
         {/* Page Header */}
         <div>
@@ -190,7 +184,7 @@ export default function IntegrationsPage() {
           {integrations.map((integration, index) => (
             <Card 
               key={integration.id} 
-              className={`card-glow cursor-pointer transition-all duration-300 hover:border-primary/50 animate-fade-in`}
+              className={`card-glow transition-all duration-300 hover:border-primary/50 animate-fade-in`}
               style={{ animationDelay: `${index * 100}ms` }}
             >
               <div className="flex items-start justify-between mb-4">
@@ -198,19 +192,16 @@ export default function IntegrationsPage() {
                   <span className="text-3xl">{integration.icon}</span>
                   <div>
                     <h3 className="text-lg font-semibold text-foreground">{integration.name}</h3>
-                    {integration.status === "connected" && (
-                      <span className="badge-pill border status-allowed text-xs">
-                        Connected
-                      </span>
-                    )}
+                
                   </div>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mb-4">{integration.description}</p>
               <Button 
+                type="button"
                 variant="outline" 
                 className="w-full border-border hover:bg-primary/10 hover:border-primary/50 hover:text-primary"
-                onClick={() => setSelectedIntegration(integration)}
+                onClick={() => handleIntegrationClick(integration)}
               >
                 View Integration Guide
                 <ExternalLink className="ml-2 h-4 w-4" />
@@ -231,9 +222,9 @@ export default function IntegrationsPage() {
                 1
               </div>
               <div>
-                <h4 className="font-medium text-foreground">Get your API Key</h4>
+                <h4 className="font-medium text-foreground">Generate API Key</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Navigate to Settings and generate a new API key for your environment.
+                  Go to Settings → API Keys and generate a new key. Copy it immediately as it won't be shown again.
                 </p>
               </div>
             </div>
@@ -242,9 +233,9 @@ export default function IntegrationsPage() {
                 2
               </div>
               <div>
-                <h4 className="font-medium text-foreground">Install the SDK</h4>
+                <h4 className="font-medium text-foreground">Install SDK & Initialize</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Choose your platform above and follow the installation steps.
+                  Install the Node.js SDK with npm, then initialize it with your API key and backend URL.
                 </p>
               </div>
             </div>
@@ -253,77 +244,14 @@ export default function IntegrationsPage() {
                 3
               </div>
               <div>
-                <h4 className="font-medium text-foreground">Configure Rules</h4>
+                <h4 className="font-medium text-foreground">Configure & Monitor</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Set up your rate limiting rules in the Rules & Policies page.
+                  Create rate limiting rules in Rules & Policies. Monitor traffic in real-time via Analytics.
                 </p>
               </div>
             </div>
           </div>
         </Card>
       </div>
-
-      {/* Integration Modal */}
-      <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>
-        <DialogContent className="max-w-2xl bg-card border-border">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">{selectedIntegration?.icon}</span>
-              <div>
-                <DialogTitle className="text-xl">{selectedIntegration?.name} Integration</DialogTitle>
-                <DialogDescription>{selectedIntegration?.description}</DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          
-          <div className="space-y-6 mt-4">
-            {/* Steps */}
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-3">Setup Steps</h4>
-              <div className="space-y-2">
-                {selectedIntegration?.steps.map((step, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
-                      {index + 1}
-                    </div>
-                    <p className="text-sm text-muted-foreground pt-0.5">{step}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Code Example */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium text-foreground">Code Example</h4>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCopyCode(selectedIntegration?.codeExample || "")}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  {copiedCode ? (
-                    <>
-                      <Check className="h-4 w-4 mr-2 text-success" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy code
-                    </>
-                  )}
-                </Button>
-              </div>
-              <pre className="code-block">
-                <code className="text-sm text-foreground">
-                  {selectedIntegration?.codeExample}
-                </code>
-              </pre>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }

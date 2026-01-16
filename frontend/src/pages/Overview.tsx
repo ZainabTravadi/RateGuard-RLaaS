@@ -1,26 +1,107 @@
-import { Activity, Shield, Server, Ban, TrendingUp, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, Shield, Server, Ban, TrendingUp, Clock, AlertCircle, Zap } from "lucide-react";
 import { StatCard, StatusBadge, Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { api } from "@/lib/api";
 
-const mockTrafficData = [
-  { time: "00:00", requests: 1200, blocked: 45 },
-  { time: "04:00", requests: 800, blocked: 20 },
-  { time: "08:00", requests: 2400, blocked: 120 },
-  { time: "12:00", requests: 3200, blocked: 180 },
-  { time: "16:00", requests: 2800, blocked: 95 },
-  { time: "20:00", requests: 1800, blocked: 60 },
-  { time: "23:59", requests: 1400, blocked: 40 },
-];
-
-const recentActivity = [
-  { id: 1, event: "Rate limit triggered", endpoint: "/api/users", time: "2 min ago", status: "blocked" },
-  { id: 2, event: "New rule activated", endpoint: "Global", time: "15 min ago", status: "info" },
-  { id: 3, event: "Burst capacity reached", endpoint: "/api/orders", time: "1 hour ago", status: "warning" },
-  { id: 4, event: "Traffic spike detected", endpoint: "/api/auth", time: "2 hours ago", status: "warning" },
-];
+interface OverviewData {
+  stats: {
+    totalRequests: number;
+    blockedRequests: number;
+    blockRate: number;
+    uniqueIPs: number;
+    uniqueEndpoints: number;
+    activeRules: number;
+    protectedServices: number;
+    requestGrowth: string;
+    blockGrowth: string;
+  };
+  trafficData: Array<{
+    time: string;
+    requests: number;
+    blocked: number;
+  }>;
+  performance: {
+    avg_response_time: number;
+    uptime_percentage: number;
+    peak_rps: number;
+  };
+  activity: Array<{
+    id: string;
+    event: string;
+    endpoint: string;
+    time: string;
+    status: "blocked" | "warning" | "info";
+    method: string;
+    ip: string;
+  }>;
+  insights: {
+    peakLoadTime: { hour: number | null; display: string; requests: number };
+    topEndpoint: { endpoint: string; total_requests: number; block_rate: number } | null;
+    mostTriggeredRule: { rule_id: string; trigger_count: number } | null;
+    statusDistribution: Array<{ status_code: number; count: number }>;
+  };
+}
 
 export default function OverviewPage() {
+  const [data, setData] = useState<OverviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchOverviewData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await api("/overview");
+        if (response.success) {
+          setData(response.data);
+        } else {
+          setError(response.message || "Failed to fetch data");
+        }
+      } catch (err) {
+        console.error("Error fetching overview data:", err);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Failed to load overview data. Please try again.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOverviewData();
+  }, []);
+
+  if (error && !data) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-12 bg-muted rounded w-1/4"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-muted-foreground">No data available</p>
+      </div>
+    );
+  }
   return (
   
       <div className="space-y-6">
@@ -36,33 +117,60 @@ export default function OverviewPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Total Requests Today"
-            value="1.2M"
-            change="+12.5% from yesterday"
-            changeType="positive"
+            title="Total Requests (24h)"
+            value={data.stats.totalRequests.toLocaleString()}
+            change={`${data.stats.requestGrowth}% from yesterday`}
+            changeType={parseFloat(data.stats.requestGrowth) >= 0 ? "positive" : "negative"}
             icon={Activity}
           />
           <StatCard
             title="Blocked Requests"
-            value="24.8K"
-            change="2.1% of total traffic"
+            value={data.stats.blockedRequests.toLocaleString()}
+            change={`${data.stats.blockRate}% block rate`}
             changeType="neutral"
             icon={Ban}
             iconColor="text-danger"
           />
           <StatCard
             title="Active Rules"
-            value="12"
-            change="3 updated this week"
+            value={data.stats.activeRules.toString()}
+            change={`${data.stats.activeRules} protecting endpoints`}
             changeType="neutral"
             icon={Shield}
           />
           <StatCard
-            title="Protected Services"
-            value="8"
-            change="All healthy"
+            title="Protected Environments"
+            value={data.stats.protectedServices.toString()}
+            change={`${data.stats.uniqueEndpoints} unique endpoints`}
             changeType="positive"
             icon={Server}
+          />
+        </div>
+
+        {/* Second Row Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard
+            title="Unique IP Addresses"
+            value={data.stats.uniqueIPs.toString()}
+            change="in last 24 hours"
+            changeType="neutral"
+            icon={AlertCircle}
+          />
+          <StatCard
+            title="Peak Requests/Hour"
+            value={data.performance.peak_rps.toString()}
+            change={`at ${data.insights.peakLoadTime.display}`}
+            changeType="neutral"
+            icon={Zap}
+            iconColor="text-warning"
+          />
+          <StatCard
+            title="System Uptime"
+            value={`${data.performance.uptime_percentage}%`}
+            change="last 30 days"
+            changeType={data.performance.uptime_percentage >= 99.9 ? "positive" : "warning"}
+            icon={TrendingUp}
+            iconColor="text-success"
           />
         </div>
 
@@ -87,7 +195,7 @@ export default function OverviewPage() {
             </CardHeader>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockTrafficData}>
+                <AreaChart data={data.trafficData}>
                   <defs>
                     <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
@@ -133,46 +241,28 @@ export default function OverviewPage() {
           {/* Quick Stats */}
           <Card>
             <CardHeader>
-              <CardTitle>Performance</CardTitle>
+              <CardTitle>Insights</CardTitle>
             </CardHeader>
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 border border-success/20">
-                    <TrendingUp className="h-5 w-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Avg Response Time</p>
-                    <p className="text-xs text-muted-foreground">Last 24 hours</p>
-                  </div>
+            <div className="space-y-4 px-4 pb-4">
+              {data.insights.topEndpoint && (
+                <div className="border-l-2 border-primary pl-3 py-2">
+                  <p className="text-xs text-muted-foreground">Busiest Endpoint</p>
+                  <p className="text-sm font-semibold text-foreground">{data.insights.topEndpoint.endpoint}</p>
+                  <p className="text-xs text-muted-foreground">{data.insights.topEndpoint.total_requests} requests • {data.insights.topEndpoint.block_rate}% blocked</p>
                 </div>
-                <span className="text-2xl font-bold text-foreground">12ms</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
-                    <Clock className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Uptime</p>
-                    <p className="text-xs text-muted-foreground">This month</p>
-                  </div>
-                </div>
-                <span className="text-2xl font-bold text-foreground">99.99%</span>
-              </div>
+              )}
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/10 border border-warning/20">
-                    <Activity className="h-5 w-5 text-warning" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Peak RPS</p>
-                    <p className="text-xs text-muted-foreground">Today</p>
-                  </div>
+              {data.insights.peakLoadTime.hour !== null && (
+                <div className="border-l-2 border-warning pl-3 py-2">
+                  <p className="text-xs text-muted-foreground">Peak Load Time</p>
+                  <p className="text-sm font-semibold text-foreground">{data.insights.peakLoadTime.display}</p>
+                  <p className="text-xs text-muted-foreground">{data.insights.peakLoadTime.requests} requests</p>
                 </div>
-                <span className="text-2xl font-bold text-foreground">3.2K</span>
+              )}
+
+              <div className="border-l-2 border-info pl-3 py-2">
+                <p className="text-xs text-muted-foreground">Avg Response Time</p>
+                <p className="text-sm font-semibold text-foreground">{data.performance.avg_response_time.toFixed(1)}ms</p>
               </div>
             </div>
           </Card>
@@ -184,21 +274,25 @@ export default function OverviewPage() {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <div className="space-y-1">
-            {recentActivity.map((item) => (
-              <div key={item.id} className="table-row flex items-center justify-between py-3 px-2 rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className={`h-2 w-2 rounded-full ${
-                    item.status === "blocked" ? "bg-danger" : 
-                    item.status === "warning" ? "bg-warning" : "bg-primary"
-                  }`} />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{item.event}</p>
-                    <p className="text-xs text-muted-foreground">{item.endpoint}</p>
+            {data.activity && data.activity.length > 0 ? (
+              data.activity.map((item) => (
+                <div key={item.id} className="table-row flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                      item.status === "blocked" ? "bg-danger" : 
+                      item.status === "warning" ? "bg-warning" : "bg-primary"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{item.event}</p>
+                      <p className="text-xs text-muted-foreground truncate">{item.endpoint} • {item.method} • {item.ip}</p>
+                    </div>
                   </div>
+                  <span className="text-sm text-muted-foreground flex-shrink-0 ml-2">{item.time}</span>
                 </div>
-                <span className="text-sm text-muted-foreground">{item.time}</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground p-4 text-center">No activity in the last 24 hours</p>
+            )}
           </div>
         </Card>
       </div>

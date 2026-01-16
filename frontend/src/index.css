@@ -98,7 +98,7 @@
 
   .card-glow::before {
     content: '';
-    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none;
     background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(var(--primary) / 0.06), transparent 40%);
   }
 
@@ -148,7 +148,7 @@
 
   .stat-card::before {
     content: '';
-    @apply absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent;
+    @apply absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none;
   }
 
   .table-row {
