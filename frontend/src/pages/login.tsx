@@ -7,7 +7,14 @@ import { PublicLayout } from "@/components/layout/PublicLayout";
 import { useAuth } from "@/context/AuthContext";
 import { Zap } from "lucide-react";
 
-const API = "http://localhost:4000";
+// Get API URL - use production URL on deployed sites
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return 'https://rateguard-7b9988e4d5f5.herokuapp.com';
+  }
+  return 'http://localhost:4000';
+};
+const API = getApiUrl();
 
 export default function LoginPage() {
   const { login } = useAuth();

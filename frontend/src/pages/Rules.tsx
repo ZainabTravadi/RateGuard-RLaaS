@@ -14,7 +14,13 @@ import {
 import { Info, Plus, Shield, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const API_BASE = "http://localhost:4000";
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return 'https://rateguard-7b9988e4d5f5.herokuapp.com';
+  }
+  return 'http://localhost:4000';
+};
+const API_BASE = getApiUrl();
 
 interface Rule {
   id: string;

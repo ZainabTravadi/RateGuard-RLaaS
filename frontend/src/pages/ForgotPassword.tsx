@@ -6,7 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Zap, ArrowLeft, AlertCircle, CheckCircle } from "lucide-react";
 
-const API = "http://localhost:4000";
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return 'https://rateguard-7b9988e4d5f5.herokuapp.com';
+  }
+  return 'http://localhost:4000';
+};
+const API = getApiUrl();
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();

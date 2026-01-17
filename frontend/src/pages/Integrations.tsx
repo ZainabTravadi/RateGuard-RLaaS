@@ -20,23 +20,31 @@ const integrations: Integration[] = [
     icon: "🟢",
     description: "Official SDK for Node.js applications with Express, Fastify, and Koa support.",
     status: "connected",
-    codeExample: `import RateGuard from "@rateguard/node";
+    codeExample: `import express from "express";
+import { RateGuard } from "@rateguard/node";
 
-const limiter = new RateGuard({
-  apiKey: "YOUR_API_KEY",
-  rules: {
-    requests: 100,
-    window: "1m"
-  }
+const app = express();
+
+// Initialize once with API key (no baseUrl needed)
+RateGuard.init({
+  apiKey: process.env.RATEGUARD_API_KEY,
 });
 
-app.use(limiter.middleware());`,
+// Example only: apply middleware to a route you choose
+app.post(
+  "/api/your-endpoint",
+  RateGuard.middleware(),
+  async (req, res) => {
+    // Your application logic
+    res.json({ ok: true });
+  }
+);`,
     steps: [
-      "Install the SDK: npm install @rateguard/node",
-      "Import RateGuard in your application",
-      "Initialize with your API key from the Settings page",
-      "Add the middleware to your Express/Fastify app",
-      "Configure rate limit rules as needed"
+      "Install the SDK: npm install @rateguard/node@0.1.2",
+      "Initialize RateGuard with only your API key",
+      "Apply middleware to the routes you choose (example: POST /api/your-endpoint)",
+      "Test: first N requests 200, N+1 returns 429 with retryAfter",
+      "Monitor requests and blocks in Dashboard → Analytics/Logs"
     ]
   },
   {
@@ -235,7 +243,7 @@ export default function IntegrationsPage() {
               <div>
                 <h4 className="font-medium text-foreground">Install SDK & Initialize</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Install the Node.js SDK with npm, then initialize it with your API key and backend URL.
+                  Install the Node.js SDK with npm, then initialize it with your API key (no backend URL needed).
                 </p>
               </div>
             </div>

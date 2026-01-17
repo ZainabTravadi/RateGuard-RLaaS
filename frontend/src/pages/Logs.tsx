@@ -74,7 +74,10 @@ export default function LogsPage() {
       if (statusFilter !== "all") params.append("status", statusFilter);
 
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:4000/logs/export/excel?${params.toString()}`, {
+      const apiUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+        ? 'https://rateguard-7b9988e4d5f5.herokuapp.com' 
+        : 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/logs/export/excel?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

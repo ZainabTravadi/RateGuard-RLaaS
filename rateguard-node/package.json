@@ -1,0 +1,28 @@
+{
+  "name": "@rateguard/node",
+  "version": "0.1.2",
+  "description": "Firebase-style rate limiting SDK powered by RateGuard",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "typescript": "^5.3.3"
+  },
+  "type": "module",
+  "license": "MIT"
+}

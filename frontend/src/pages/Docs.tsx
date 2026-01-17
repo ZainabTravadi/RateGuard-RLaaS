@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { CodeBlock } from "@/components/CodeBlock";
 import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { ChevronRight, Code2, BookOpen, Shield, Zap, Copy, Check } from "lucide-react";
+import { ChevronRight, Code2, BookOpen, Shield, Zap } from "lucide-react";
 
 export default function DocsPage() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -28,41 +29,57 @@ export default function DocsPage() {
 
   const codeExamples = [
     {
-      title: "Quick Start",
-      description: "Get started with RateGuard in 30 seconds",
-      code: `import RateGuard from "@rateguard/node";
+      title: "Install & Initialize",
+      description: "Pin version and initialize with API key only",
+      code: `import express from "express";
+import { RateGuard } from "@rateguard/node";
 
-const limiter = RateGuard.init({
+const app = express();
+
+// Initialize once at startup (no baseUrl needed)
+RateGuard.init({
   apiKey: process.env.RATEGUARD_API_KEY,
-  baseUrl: process.env.RATEGUARD_URL
-});
-
-app.use(limiter.middleware());`,
+});`,
       index: 0
     },
     {
-      title: "Check Rate Limit",
-      description: "Programmatically check if a request is rate limited",
-      code: `const { allowed, remaining, limit } = await RateGuard.checkLimit({
-  identifier: "user_123",
-  endpoint: "/api/endpoint",
-  method: "POST"
-});
+      title: "Protect any endpoint",
+      description: "Apply middleware selectively to the routes you choose",
+      code: `import { RateGuard } from "@rateguard/node";
 
-if (!allowed) {
-  return res.status(429).json({ error: "Rate limited" });
-}`,
+// Example: protect a POST action
+app.post(
+  "/api/your-endpoint",
+  RateGuard.middleware(),
+  async (req, res) => {
+    // Your business logic
+    res.json({ ok: true });
+  }
+);
+
+// Example: protect a GET resource
+app.get(
+  "/api/resource",
+  RateGuard.middleware(),
+  async (req, res) => {
+    res.json({ data: [] });
+  }
+);`,
       index: 1
     },
     {
-      title: "Custom Identifier",
-      description: "Use custom identifiers instead of IP addresses",
-      code: `app.use((req, res, next) => {
-  req.rateguardIdentifier = req.user?.id || req.ip;
-  next();
-});
+      title: "Test & Verify",
+      description: "Expect 200 for first N, then 429 with retryAfter",
+      code: `# curl examples
+# First request should succeed
+curl -X POST https://your-app.example.com/api/your-endpoint -H "Content-Type: application/json" -d '{"sample":"payload"}'
 
-app.use(RateGuard.middleware());`,
+# Send multiple rapid requests to trigger the limit
+for i in {1..10}; do
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://your-app.example.com/api/your-endpoint -H "Content-Type: application/json" -d '{"sample":"payload"}';
+done
+
+# Expect 429 with body including retryAfter once limit is exceeded`,
       index: 2
     }
   ];
@@ -177,32 +194,106 @@ app.use(RateGuard.middleware());`,
                 <p className="text-sm text-muted-foreground mb-4">
                   {example.description}
                 </p>
-                <div className="relative">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCopy(example.code, example.index)}
-                    className="absolute top-2 right-2 text-muted-foreground hover:text-foreground z-10"
-                  >
-                    {copiedIndex === example.index ? (
-                      <>
-                        <Check className="h-3 w-3 mr-2 text-success" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3 mr-2" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-                  <pre className="code-block">
-                    <code className="text-sm">{example.code}</code>
-                  </pre>
-                </div>
+                <CodeBlock
+                  code={example.code}
+                  language={example.index === 2 ? "bash" : "typescript"}
+                  onCopy={() => handleCopy(example.code, example.index)}
+                  copied={copiedIndex === example.index}
+                />
               </Card>
             ))}
+          </div>
+        </div>
+
+        {/* Protect Any API Endpoint Guide */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-foreground mb-4">Protect Any API Endpoint</h2>
+          <p className="text-muted-foreground mb-8">
+            Apply RateGuard to any route in your application. Choose which endpoints to protect and configure different limits per endpoint in the dashboard.
+          </p>
+
+          <div className="grid grid-cols-1 gap-6">
+            <Card className="card-glow">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Setup Overview</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>Dashboard: Use your RateGuard workspace to manage API keys and rules</li>
+                <li>SDK Package: <span className="font-mono">@rateguard/node@0.1.2</span></li>
+                <li>Endpoints to Protect (examples only): <span className="font-mono">/api/your-endpoint</span>, <span className="font-mono">/api/resource</span>, <span className="font-mono">/api/action</span></li>
+                <li>Pattern: Install SDK → initialize once → apply middleware per route you choose</li>
+                <li>Limits: Configure different thresholds per endpoint/method in the dashboard</li>
+              </ul>
+            </Card>
+
+            <Card className="card-glow">
+              <h3 className="text-lg font-semibold text-foreground mb-2">What To Do</h3>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium text-foreground">1) Install the SDK</h4>
+                  <CodeBlock
+                    code="npm install @rateguard/node@0.1.2"
+                    language="bash"
+                    className="mt-2"
+                  />
+                </div>
+                <div>
+                  <h4 className="font-medium text-foreground">2) Initialize in your main app file</h4>
+                  <CodeBlock
+                    code={`import { RateGuard } from '@rateguard/node';
+
+RateGuard.init({
+  apiKey: process.env.RATEGUARD_API_KEY,
+});`}
+                    language="typescript"
+                    className="mt-2"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">Store the API key in environment variables. No baseUrl needed.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-foreground">3) Apply middleware to the endpoint</h4>
+                  <CodeBlock
+                    code={`app.post('/api/your-endpoint',
+  RateGuard.middleware(),
+  async (req, res) => {
+    // Example route only—use your own endpoints
+    res.json({ ok: true });
+  }
+);`}
+                    language="typescript"
+                    className="mt-2"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">Apply to any route you want protected. Use separate dashboard rules for different endpoints and methods.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-foreground">4) Test the integration</h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground mt-2">
+                    <li>200/201: Request allowed (within limit)</li>
+                    <li>429: Rate limit exceeded (includes <span className="font-mono">retryAfter</span>)</li>
+                    <li>Dashboards: Verify requests and blocks in Analytics/Logs</li>
+                  </ul>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="card-glow">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Testing Checklist</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>✓ SDK installed and builds without errors</li>
+                <li>✓ RateGuard.init() called with correct API key</li>
+                <li>✓ Middleware applied to the routes you chose (e.g., <span className="font-mono">/api/your-endpoint</span>)</li>
+                <li>✓ First N requests return 200, N+1 returns 429 with retryAfter</li>
+                <li>✓ Dashboard shows request logs and blocks</li>
+                <li>✓ Limit resets after window</li>
+              </ul>
+            </Card>
+
+            <Card className="card-glow">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Troubleshooting</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><span className="text-foreground font-medium">Not rate-limiting:</span> Check exact endpoint path/method in your rule, and middleware order (before handler).</li>
+                <li><span className="text-foreground font-medium">API key required:</span> Ensure <span className="font-mono">RATEGUARD_API_KEY</span> is set, valid (<span className="font-mono">rg_live_</span>/<span className="font-mono">rg_test_</span>), and not revoked.</li>
+                <li><span className="text-foreground font-medium">Global limiting:</span> Remove any global <span className="font-mono">app.use(RateGuard.middleware())</span>; apply only to routes you intend to protect.</li>
+              </ul>
+            </Card>
           </div>
         </div>
 
@@ -326,7 +417,7 @@ app.use(RateGuard.middleware());`,
             <Card className="card-glow">
               <h4 className="font-semibold text-foreground mb-2">Can I test rate limiting locally?</h4>
               <p className="text-muted-foreground">
-                Absolutely! Set RATEGUARD_URL to your local backend URL (e.g., http://localhost:4000) for development and testing.
+                Absolutely! For local development, you can point the RateGuard backend via <span className="font-mono">RATEGUARD_URL</span>. In production, the SDK uses the hosted RateGuard service by default.
               </p>
             </Card>
           </div>

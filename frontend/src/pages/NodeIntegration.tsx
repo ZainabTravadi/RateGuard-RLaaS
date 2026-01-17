@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CodeBlock } from "@/components/CodeBlock";
 import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Check, Copy, Terminal, Package, Code, Settings, Zap, Shield, CheckCircle2, AlertCircle } from "lucide-react";
@@ -39,7 +40,7 @@ export default function NodeIntegrationPage() {
       icon: Package,
       title: "Install the SDK",
       description: "Add @rateguard/node to your project using npm or yarn",
-      code: "npm install @rateguard/node",
+      code: "npm install @rateguard/node@0.1.2",
       details: [
         "Requires Node.js 18 or higher",
         "Full TypeScript support included",
@@ -67,44 +68,42 @@ export default function NodeIntegrationPage() {
       number: 3,
       icon: Code,
       title: "Initialize the SDK",
-      description: "Configure RateGuard with your API key and base URL",
+      description: "Configure RateGuard once with your API key (no base URL)",
       code: `import { RateGuard } from '@rateguard/node';
 
 // Initialize once at app startup
 RateGuard.init({
-  apiKey: process.env.RATEGUARD_API_KEY,
-  baseUrl: process.env.RATEGUARD_URL || 'http://localhost:4000'
+  apiKey: process.env.RATEGUARD_API_KEY
 });`,
       details: [
         "Call RateGuard.init() before using any middleware",
         "Use environment variables for security",
-        "baseUrl defaults to production if not specified",
-        "Set RATEGUARD_URL to your backend URL (e.g., http://localhost:4000)"
+        "No baseUrl needed in v0.1.2; SDK uses hosted RateGuard",
+        "Optional: set RATEGUARD_URL for local development overrides"
       ]
     },
     {
       number: 4,
       icon: Shield,
       title: "Apply Middleware",
-      description: "Protect your routes with automatic rate limiting",
+      description: "Protect any endpoint (example only—use your routes)",
       code: `import express from 'express';
 import { RateGuard } from '@rateguard/node';
 
 const app = express();
 
-// Option 1: Protect all routes
-app.use(RateGuard.middleware());
-
-// Option 2: Protect specific routes
-app.get('/api/data', RateGuard.middleware(), (req, res) => {
-  res.json({ message: 'Protected by RateGuard' });
+// Example only: apply middleware to a POST endpoint you choose
+app.post('/api/your-endpoint', RateGuard.middleware(), async (req, res) => {
+  // Your application logic
+  res.json({ ok: true });
 });
 
 app.listen(3000);`,
       details: [
-        "Middleware automatically checks rate limits for each request",
+        "Attach middleware only to routes you want protected",
         "Returns 429 status when limit exceeded",
         "Includes retry-after header in responses",
+        "Configure different limits per endpoint in the dashboard",
         "Works with any Express-compatible framework"
       ]
     },
@@ -129,54 +128,25 @@ app.listen(3000);`,
 
   const advancedExamples = [
     {
-      title: "Programmatic Usage",
-      description: "Check rate limits programmatically without middleware",
-      code: `import { limit } from '@rateguard/node';
-
-async function processTask(userId) {
-  try {
-    const result = await limit({
-      identifier: userId,
-      endpoint: '/api/heavy-task',
-      method: 'POST'
-    });
-    
-    console.log(\`Remaining: \${result.remaining}/\${result.limit}\`);
-    
-    // Process the task
-    return await heavyOperation();
-  } catch (err) {
-    // Rate limited
-    throw new Error(\`Rate limited. Retry after \${err.retryAfter}s\`);
-  }
-}`
-    },
-    {
       title: "Custom Identifiers",
-      description: "Use custom identifiers like user IDs instead of IP addresses",
-      code: `app.use((req, res, next) => {
-  // Override default IP-based identification
+      description: "Override the default IP-based identifier using user IDs",
+      code: `import { RateGuard } from '@rateguard/node';
+
+// Attach your preferred identifier
+app.use((req, res, next) => {
   req.rateguardIdentifier = req.user?.id || req.ip;
   next();
 });
 
-// Create custom middleware
-function customRateLimiter(req, res, next) {
-  const identifier = req.user?.id || req.ip;
-  
-  limit({
-    identifier,
-    endpoint: req.path,
-    method: req.method
-  }).then(() => next())
-    .catch(() => res.status(429).json({ 
-      error: 'Rate limit exceeded' 
-    }));
-}`
+// Use middleware on specific routes
+app.post('/api/your-endpoint', RateGuard.middleware(), async (req, res) => {
+  // Your application logic
+  res.json({ ok: true });
+});`
     },
     {
       title: "Error Handling",
-      description: "Handle rate limit errors gracefully",
+      description: "Handle rate limit errors gracefully at the app level",
       code: `app.use((err, req, res, next) => {
   if (err.name === 'RateLimitError') {
     return res.status(429).json({
@@ -247,13 +217,13 @@ function customRateLimiter(req, res, next) {
               <h3 className="text-lg font-semibold text-foreground mb-2">Quick Install</h3>
               <div className="flex items-center gap-3">
                 <code className="flex-1 px-4 py-3 rounded-lg bg-background border border-border font-mono text-sm text-foreground">
-                  npm install @rateguard/node
+                  npm install @rateguard/node@0.1.2
                 </code>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => handleCopy("npm install @rateguard/node", -1)}
+                  onClick={() => handleCopy("npm install @rateguard/node@0.1.2", -1)}
                   className="border-border"
                 >
                   {copiedIndex === -1 ? (
@@ -312,29 +282,13 @@ function customRateLimiter(req, res, next) {
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-muted-foreground">CODE</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopy(step.code!, index)}
-                          className="text-muted-foreground hover:text-foreground h-7"
-                        >
-                          {copiedIndex === index ? (
-                            <>
-                              <Check className="h-3 w-3 mr-2 text-success" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3 w-3 mr-2" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
                       </div>
-                      <pre className="code-block">
-                        <code className="text-sm">{step.code}</code>
-                      </pre>
+                      <CodeBlock
+                        code={step.code}
+                        language="typescript"
+                        onCopy={() => handleCopy(step.code!, index)}
+                        copied={copiedIndex === index}
+                      />
                     </div>
                   )}
 
@@ -378,31 +332,12 @@ function customRateLimiter(req, res, next) {
               <Card key={index} className="card-glow">
                 <h3 className="text-lg font-semibold text-foreground mb-2">{example.title}</h3>
                 <p className="text-sm text-muted-foreground mb-4">{example.description}</p>
-                
-                <div className="relative">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCopy(example.code, 100 + index)}
-                    className="absolute top-2 right-2 text-muted-foreground hover:text-foreground z-10"
-                  >
-                    {copiedIndex === 100 + index ? (
-                      <>
-                        <Check className="h-3 w-3 mr-2 text-success" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3 mr-2" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-                  <pre className="code-block">
-                    <code className="text-sm">{example.code}</code>
-                  </pre>
-                </div>
+                <CodeBlock
+                  code={example.code}
+                  language="typescript"
+                  onCopy={() => handleCopy(example.code, 100 + index)}
+                  copied={copiedIndex === 100 + index}
+                />
               </Card>
             ))}
           </div>
@@ -429,7 +364,7 @@ function customRateLimiter(req, res, next) {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-warning mt-0.5">•</span>
-                  <span><strong className="text-foreground">Base URL:</strong> Set RATEGUARD_URL to your backend URL (e.g., http://localhost:4000 for development).</span>
+                  <span><strong className="text-foreground">Base URL:</strong> Handled by the SDK in v0.1.2. Optionally set <span className="font-mono">RATEGUARD_URL</span> for local development overrides.</span>
                 </li>
               </ul>
             </div>
