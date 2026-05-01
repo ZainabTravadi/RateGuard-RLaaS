@@ -5,15 +5,9 @@ import {
   useState,
   ReactNode,
 } from "react";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
-// Get API URL - use production URL on deployed sites
-const getApiUrl = () => {
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return 'https://rateguard-7b9988e4d5f5.herokuapp.com';
-  }
-  return 'http://localhost:4000';
-};
-const API = getApiUrl();
+const API = getApiBaseUrl();
 
 /* ======================
    Types

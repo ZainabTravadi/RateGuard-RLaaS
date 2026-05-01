@@ -138,7 +138,7 @@ http {
     status: "available",
     codeExample: `// Check rate limit before processing request
 const response = await fetch(
-  "https://api.rateguard.io/v1/check",
+    "http://localhost:4000/v1/check",
   {
     method: "POST",
     headers: {

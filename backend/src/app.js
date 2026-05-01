@@ -12,11 +12,36 @@ import gatewayRoutes from "./modules/gateway/gateway.routes.js";
 import { overviewRoutes } from "./modules/overview/overview.routes.js";
 import { workspaceRoutes } from "./modules/workspaces/workspaces.routes.js";
 import { notificationRoutes } from "./modules/notifications/notifications.routes.js";
-import { getRedis } from "./redis/client.js";
 
 export const app = Fastify({ logger: true });
 
 /* ------------------------------------------------------- */
+
+app.addHook("onRequest", async (request) => {
+  request.log.info(
+    {
+      method: request.method,
+      url: request.url,
+      ip: request.ip,
+    },
+    "incoming request"
+  );
+});
+
+app.setErrorHandler((error, request, reply) => {
+  request.log.error({ error }, "request failed");
+
+  const statusCode = error.statusCode || error.status || 500;
+  const message =
+    statusCode >= 500
+      ? "Internal server error"
+      : error.message || "Request failed";
+
+  reply.code(statusCode).send({
+    success: false,
+    error: message,
+  });
+});
 
 await app.register(cors, {
   origin: true,

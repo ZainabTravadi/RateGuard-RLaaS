@@ -71,13 +71,46 @@ RateGuard/
 
 ## 🟦 Local Development
 
+## Getting Started
+
+1. Install dependencies in each package:
+```bash
+cd backend && npm install
+cd ../frontend && npm install
+cd ../rateguard-node && npm install
+```
+
+2. Start Redis locally:
+```bash
+redis-server
+```
+
+3. Start the backend:
+```bash
+cd backend
+cp .env.example .env
+npm run dev
+```
+
+4. Start the frontend:
+```bash
+cd frontend
+cp .env.example .env
+npm run dev
+```
+
+5. Test the backend health endpoint:
+```bash
+curl http://localhost:4000/v1/health
+```
+
 ### Frontend (Dashboard)
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-- Vite dev server starts locally; environment and auth settings are managed within the app.
+- Vite dev server starts locally and reads `VITE_API_URL` from the environment.
 
 ### Backend (Service API)
 ```bash
@@ -85,8 +118,9 @@ cd backend
 npm install
 npm run dev
 ```
-- Starts Fastify server via `src/server.js`.
-- Ensure required environment variables (database, SMTP, redis) are configured.
+- Starts the Fastify server via `src/server.js`.
+- Required local environment variables are documented in `backend/.env.example`.
+- Redis is optional in development; the server falls back to an in-memory mock if `REDIS_URL` is unset.
 
 ### SDK (Node.js)
 ```bash
@@ -95,7 +129,7 @@ npm install
 npm run build
 ```
 - Builds TypeScript to `dist/`.
-- Published version: `@rateguard/node@0.1.2`.
+- The SDK defaults to `http://localhost:4000` unless `RATEGUARD_URL` or `baseUrl` is provided.
 
 ---
 

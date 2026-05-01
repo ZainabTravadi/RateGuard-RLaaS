@@ -21,7 +21,11 @@ export const emailProviders = {
  * @param {string} text - Plain text email body (optional)
  */
 export async function sendEmail(to, subject, html, text = null) {
-  const provider = process.env.EMAIL_PROVIDER || emailProviders.smtp;
+  const provider =
+    process.env.EMAIL_PROVIDER ||
+    (process.env.NODE_ENV === "production"
+      ? emailProviders.smtp
+      : emailProviders.console);
 
   console.log(`📧 Sending email via ${provider} to ${to}`);
 
@@ -65,19 +69,8 @@ async function sendViaSMTP(to, subject, html, text) {
   let transporter;
   
   if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
-    console.log("⚠️  No SMTP credentials - using Ethereal test account");
-    console.log(`   SMTP_USER: ${process.env.SMTP_USER ? 'EXISTS' : 'MISSING'}`);
-    console.log(`   SMTP_PASS: ${process.env.SMTP_PASS ? 'EXISTS' : 'MISSING'}`);
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
+    console.log("⚠️  No SMTP credentials - falling back to console email logging");
+    return sendViaConsole(to, subject, html, text);
   } else {
     console.log(`✅ Using SMTP credentials for ${smtpConfig.auth.user}`);
     transporter = nodemailer.createTransport(smtpConfig);

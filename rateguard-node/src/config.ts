@@ -1,35 +1,38 @@
-// Production RateGuard service URL
-const RATEGUARD_SERVICE_URL = "https://rateguard-7b9988e4d5f5.herokuapp.com";
+const DEFAULT_RATEGUARD_URL = process.env.RATEGUARD_URL || "https://api.rateguard.io";
 
-// User-facing config - simple, just API key
 export interface RateGuardInitConfig {
   apiKey: string;
+  baseUrl?: string;
+  timeoutMs?: number;
+  debug?: boolean;
 }
 
-// Internal config with baseUrl
+// Internal config
 interface InternalConfig {
   apiKey: string;
   baseUrl: string;
+  timeoutMs: number;
+  debug: boolean;
 }
 
 let config: InternalConfig | null = null;
 
 export function initConfig(cfg: RateGuardInitConfig) {
-  if (!cfg.apiKey) {
+  if (!cfg || !cfg.apiKey) {
     throw new Error("RateGuard: apiKey is required");
   }
 
   config = {
     apiKey: cfg.apiKey,
-    baseUrl: process.env.RATEGUARD_URL || RATEGUARD_SERVICE_URL,
+    baseUrl: cfg.baseUrl || DEFAULT_RATEGUARD_URL,
+    timeoutMs: typeof cfg.timeoutMs === 'number' ? cfg.timeoutMs : 5000,
+    debug: !!cfg.debug,
   };
 }
 
 export function getConfig(): InternalConfig {
   if (!config) {
-    throw new Error(
-      "RateGuard not initialized. Call RateGuard.init() first."
-    );
+    throw new Error("RateGuard not initialized. Call RateGuard.init() first.");
   }
   return config;
 }

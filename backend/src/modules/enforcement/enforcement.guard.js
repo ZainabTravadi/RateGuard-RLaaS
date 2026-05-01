@@ -1,7 +1,7 @@
 // src/modules/enforcement/enforcement.guard.js
 import { getEnvironments } from "../environments/environments.service.js";
 import { getRulesByUser } from "../rules/rules.service.js";
-import { evaluateRules } from "./ruleEngine.js";
+import { evaluate as evaluateRateLimit } from "./rateLimit.service.js";
 
 /**
  * Gateway-only blocking middleware
@@ -23,7 +23,7 @@ export async function enforcementGuard(req, reply) {
 
   const endpoint = req.url.split("?")[0];
 
-  const result = await evaluateRules({
+  const result = await evaluateRateLimit({
     rules,
     identifier: req.ip,
     endpoint,
@@ -31,6 +31,21 @@ export async function enforcementGuard(req, reply) {
     environmentId: env.id,
     now: Math.floor(Date.now() / 1000),
   });
+
+  req.rateLimit = result;
+
+  req.log.info(
+    {
+      apiKeyId: req.apiKey.id,
+      userId,
+      environmentId: env.id,
+      endpoint,
+      method: req.method,
+      allowed: result.allowed,
+      ruleId: result.ruleId || null,
+    },
+    "gateway rate limit decision"
+  );
 
   if (!result.allowed) {
     reply

@@ -5,14 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Zap, ArrowLeft, AlertCircle, CheckCircle } from "lucide-react";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
-const getApiUrl = () => {
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return 'https://rateguard-7b9988e4d5f5.herokuapp.com';
-  }
-  return 'http://localhost:4000';
-};
-const API = getApiUrl();
+const API = getApiBaseUrl();
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();

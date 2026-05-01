@@ -9,9 +9,10 @@ import {
   updateUserPassword,
 } from "./auth.service.js";
 import { sendEmail, emailTemplates } from "../../utils/email.js";
+import { env } from "../../config/env.js";
 
 /* CONFIG */
-const API = process.env.API_URL || "http://localhost:4000";
+const API = env.API_URL;
 
 /* ============== SIGNUP ============== */
 export async function signup(req, reply) {
@@ -45,7 +46,7 @@ export async function signup(req, reply) {
         randomUUID(),
         userId,
         "production",
-        "https://api.yourapp.com",
+        env.DEFAULT_ENV_BASE_URL,
       ]
     );
   } catch (err) {

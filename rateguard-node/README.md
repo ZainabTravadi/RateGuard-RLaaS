@@ -19,7 +19,7 @@ import { RateGuard } from '@rateguard/node';
 const app = express();
 
 // Initialize SDK with just your API key
-// baseUrl is automatically set to production RateGuard service
+// baseUrl defaults to http://localhost:4000 in local development
 RateGuard.init({
   apiKey: process.env.RATEGUARD_API_KEY
 });
@@ -64,13 +64,13 @@ Required:
 - **apiKey** - Your RateGuard API key from the dashboard
 
 Optional:
-- **baseUrl** - RateGuard API endpoint (default: `https://rateguard-7b9988e4d5f5.herokuapp.com`)
-  - Can also set via `RATEGUARD_URL` environment variable
+- **baseUrl** - RateGuard API endpoint (default: `http://localhost:4000`)
+  - Can also set via `RATEGUARD_URL` environment variable or `RateGuard.init({ baseUrl })`
 
 ```javascript
 RateGuard.init({
   apiKey: 'rg_live_abc123...',
-  baseUrl: 'https://rateguard-7b9988e4d5f5.herokuapp.com' // Optional, this is the default
+  baseUrl: 'http://localhost:4000' // Optional, this is the local default
 });
 ```
 
@@ -83,7 +83,7 @@ Initialize the SDK. Must be called before using middleware or programmatic check
 ```typescript
 RateGuard.init({
   apiKey: string;      // Required
-  baseUrl?: string;    // Optional, defaults to https://api.rateguard.io
+  baseUrl?: string;    // Optional, defaults to http://localhost:4000
 });
 ```
 
@@ -190,5 +190,5 @@ MIT
 ## Support
 
 - Issues: https://github.com/rateguard/rateguard-node/issues
-- Docs: https://rateguard.io/docs
+- Docs: see the repository README and local examples
 - Email: support@rateguard.io

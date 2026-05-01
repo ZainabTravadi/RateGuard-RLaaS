@@ -1,34 +1,12 @@
-// Determine API base URL
-// Priority 1: Vercel env var (build-time)
-// Priority 2: Runtime window variable (injected)
-// Priority 3: Production hardcoded URL
-const getApiBase = () => {
-  // Check build-time env var first
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-  
-  // Check for runtime injection (fallback)
-  if (typeof window !== 'undefined' && (window as any).__RATEGUARD_API_URL) {
-    return (window as any).__RATEGUARD_API_URL;
-  }
-  
-  // Production hardcoded URL - NEVER localhost in production
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return 'https://rateguard-7b9988e4d5f5.herokuapp.com';
-  }
-  
-  // Development/local only
-  return 'http://localhost:4000';
-};
+import { getApiBaseUrl } from "./apiBase";
 
-const API_BASE = getApiBase();
+const API_BASE = getApiBaseUrl();
 
 // Debug log
 if (import.meta.env.DEV) {
-  console.log('[RateGuard API] Using base URL:', API_BASE);
+  console.log("[RateGuard API] Using base URL:", API_BASE);
 } else {
-  console.log('[RateGuard API] Production mode - API URL:', API_BASE);
+  console.log("[RateGuard API] API URL:", API_BASE);
 }
 
 export async function api(

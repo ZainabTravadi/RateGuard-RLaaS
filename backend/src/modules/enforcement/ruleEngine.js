@@ -1,43 +1,10 @@
 // src/modules/enforcement/ruleEngine.js
-import { incrementCounter } from "./counter.store.js";
+import { evaluate as evaluateRateLimit } from './rateLimit.service.js';
 
 /**
- * Evaluate rate-limit rules
+ * Thin compatibility wrapper kept for backwards compatibility.
+ * Delegates to the new RateLimitService.
  */
-export async function evaluateRules({
-  rules,
-  identifier,
-  endpoint,
-  method,
-  environmentId,
-  now,
-}) {
-  for (const rule of rules) {
-    // Endpoint scope
-    if (rule.scope === "endpoint" && rule.endpoint !== endpoint) {
-      continue;
-    }
-
-    // Optional HTTP method filter
-    if (rule.method && rule.method !== method) {
-      continue;
-    }
-
-    const count = incrementCounter({
-      ruleId: rule.id,
-      identifier,
-      windowSeconds: rule.window_seconds,
-      now,
-    });
-
-    if (count > rule.limit_count) {
-      return {
-        allowed: false,
-        ruleId: rule.id,
-        retryAfter: rule.window_seconds,
-      };
-    }
-  }
-
-  return { allowed: true };
+export async function evaluateRules(opts) {
+  return evaluateRateLimit(opts);
 }

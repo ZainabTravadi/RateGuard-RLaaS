@@ -1,18 +1,22 @@
 import { initConfig } from "./config.js";
-import { createMiddleware } from "./middleware.js";
-import { limit } from "./limiter.js";
-import { checkRateLimit } from "./client.js";
+import { middleware, limit } from "./middleware.js";
 
 // Export types for TypeScript users
-export type { RateLimitResponse } from "./types.js";
+export type {
+  RateLimitResponse,
+  RateLimitResult,
+  MiddlewareOptions,
+  LimitOptions,
+  LimitCallOptions,
+  RateGuardMiddleware,
+} from "./types.js";
 export type { RateGuardInitConfig } from "./config.js";
 export { RateLimitError } from "./errors.js";
+export { SDK_VERSION } from "./version.js";
 
 // Main API
 export const RateGuard = {
   init: initConfig,
-  middleware: createMiddleware,
+  middleware,
+  limit,
 };
-
-// Also export individual functions for advanced usage
-export { limit, checkRateLimit };

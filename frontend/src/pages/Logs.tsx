@@ -18,6 +18,7 @@ import {
   Download
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
 interface LogEntry {
   id: string;
@@ -74,9 +75,7 @@ export default function LogsPage() {
       if (statusFilter !== "all") params.append("status", statusFilter);
 
       const token = localStorage.getItem("token");
-      const apiUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-        ? 'https://rateguard-7b9988e4d5f5.herokuapp.com' 
-        : 'http://localhost:4000';
+      const apiUrl = getApiBaseUrl();
       const response = await fetch(`${apiUrl}/logs/export/excel?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`

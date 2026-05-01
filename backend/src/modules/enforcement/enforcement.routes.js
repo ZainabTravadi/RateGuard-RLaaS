@@ -1,7 +1,7 @@
 // src/modules/enforcement/enforcement.routes.js
 import { getEnvironments } from "../environments/environments.service.js";
 import { getRulesByUser } from "../rules/rules.service.js";
-import { evaluateRules } from "./ruleEngine.js";
+import { evaluate as evaluateRateLimit } from "./rateLimit.service.js";
 
 /**
  * SDK contract
@@ -40,7 +40,7 @@ export async function enforcementRoutes(app) {
       return reply.send({ allowed: true });
     }
 
-    const result = await evaluateRules({
+    const result = await evaluateRateLimit({
       rules,
       identifier,
       endpoint,
@@ -48,6 +48,21 @@ export async function enforcementRoutes(app) {
       environmentId: env.id,
       now: Math.floor(Date.now() / 1000),
     });
+
+    req.rateLimit = result;
+
+    app.log.info(
+      {
+        apiKeyId: req.apiKey.id,
+        userId,
+        environmentId: env.id,
+        endpoint,
+        method,
+        allowed: result.allowed,
+        ruleId: result.ruleId || null,
+      },
+      "rate limit decision"
+    );
 
     return reply.send(result);
   });

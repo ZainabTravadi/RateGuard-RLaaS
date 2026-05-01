@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { db } from "../../db/index.js";
 import { randomUUID } from "crypto";
+import { env } from "../../config/env.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -182,10 +183,10 @@ export async function createUser(email, password) {
       `
       INSERT INTO environments (user_id, name, base_url, is_active)
       VALUES
-        ($1, 'production', 'https://api.rateguard.io', true),
-        ($1, 'development', 'https://dev.api.rateguard.io', true)
+        ($1, 'production', $2, true),
+        ($1, 'development', $3, true)
       `,
-      [userId]
+      [userId, env.DEFAULT_ENV_BASE_URL, env.DEFAULT_DEV_ENV_BASE_URL]
     );
 
     await client.query("COMMIT");
