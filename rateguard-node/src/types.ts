@@ -7,6 +7,10 @@ export interface RateLimitResponse {
   reset?: number | null;
   retryAfter?: number;
   ruleId?: string;
+  warning?: boolean;
+  message?: string;
+  reason?: string;
+  violations?: number;
 }
 
 export interface RateLimitResult {
@@ -16,6 +20,10 @@ export interface RateLimitResult {
   retryAfter?: number;
   reset?: number | null;
   ruleId?: string | null;
+  warning?: boolean;
+  message?: string;
+  reason?: string;
+  violations?: number;
 }
 
 export interface MiddlewareOptions {
@@ -25,6 +33,7 @@ export interface MiddlewareOptions {
   window?: string | number; // e.g. '1m' or seconds
   failOpen?: boolean;
   debug?: boolean;
+  smartMode?: boolean;
 }
 
 export interface LimitOptions {

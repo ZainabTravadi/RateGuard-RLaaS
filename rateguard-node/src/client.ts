@@ -12,14 +12,13 @@ export async function checkRateLimit(payload: {
   identifier: string;
   endpoint: string;
   method: string;
+  smartMode?: boolean;
 }): Promise<RateLimitResult> {
   const { apiKey, baseUrl, timeoutMs, debug } = getConfig();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    if (debug) console.debug('[RateGuard] request', payload);
-
     const res = await fetch(`${baseUrl}/v1/check`, {
       method: "POST",
       headers: {
@@ -41,7 +40,6 @@ export async function checkRateLimit(payload: {
         throw createClientError('RateGuard authentication failed: missing or invalid API key', 'AUTH_ERROR', res.status);
       }
 
-      if (debug) console.warn('[RateGuard] API non-OK', res.status, body);
       throw createClientError(`RateGuard API request failed with status ${res.status}`, 'API_ERROR', res.status);
     }
 
@@ -52,6 +50,10 @@ export async function checkRateLimit(payload: {
     const reset = body?.reset ?? null;
     const retryAfter = body?.retryAfter ?? undefined;
     const ruleId = body?.ruleId ?? null;
+    const warning = body?.warning ?? undefined;
+    const message = body?.message ?? undefined;
+    const reason = body?.reason ?? undefined;
+    const violations = body?.violations ?? undefined;
 
     const result: RateLimitResult = {
       allowed,
@@ -60,9 +62,12 @@ export async function checkRateLimit(payload: {
       reset,
       retryAfter,
       ruleId,
+      warning,
+      message,
+      reason,
+      violations,
     };
 
-    if (debug) console.debug('[RateGuard] response', result);
     return result;
   } catch (error) {
     clearTimeout(timeout);
@@ -70,7 +75,6 @@ export async function checkRateLimit(payload: {
       throw createClientError(`RateGuard request timeout after ${timeoutMs}ms`, 'TIMEOUT');
     }
 
-    if (debug) console.warn('[RateGuard] network error', error);
     throw createClientError('RateGuard API unreachable', 'NETWORK_ERROR');
   }
 }

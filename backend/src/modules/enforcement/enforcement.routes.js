@@ -2,19 +2,25 @@
 import { getEnvironments } from "../environments/environments.service.js";
 import { getRulesByUser } from "../rules/rules.service.js";
 import { evaluate as evaluateRateLimit } from "./rateLimit.service.js";
+import { validateBody } from "../../middleware/requestValidation.js";
+import { rateLimitCheckSchema } from "./enforcement.schema.js";
 
 /**
  * SDK contract
  * POST /v1/check
  */
 export async function enforcementRoutes(app) {
-  app.post("/v1/check", async (req, reply) => {
+  app.post("/v1/check", { preHandler: validateBody(rateLimitCheckSchema) }, async (req, reply) => {
     // 🔐 API key auth MUST be done before this route
     if (!req.apiKey) {
-      return reply.code(401).send({ error: "API key required" });
+      return reply.code(401).send({
+        error: "Unauthorized",
+        message: "Invalid or missing API key",
+      });
     }
 
     const { identifier, endpoint, method } = req.body || {};
+    const smartMode = req.body?.smartMode;
 
     if (!identifier || !endpoint || !method) {
       return reply.code(400).send({
@@ -45,6 +51,8 @@ export async function enforcementRoutes(app) {
       identifier,
       endpoint,
       method,
+      smartMode,
+      apiKeyId: req.apiKey.id,
       environmentId: env.id,
       now: Math.floor(Date.now() / 1000),
     });
@@ -63,6 +71,19 @@ export async function enforcementRoutes(app) {
       },
       "rate limit decision"
     );
+
+    if (!result.allowed) {
+      req.log.warn(
+        {
+          apiKeyId: req.apiKey.id,
+          userId,
+          endpoint,
+          method,
+          ruleId: result.ruleId || null,
+        },
+        "rate limit denied"
+      );
+    }
 
     return reply.send(result);
   });

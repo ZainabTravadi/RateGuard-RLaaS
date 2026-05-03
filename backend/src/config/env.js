@@ -17,6 +17,8 @@ export const env = {
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: required("JWT_SECRET"),
   REDIS_URL: process.env.REDIS_URL || "",
+  REDIS_TIMEOUT_MS: Number(process.env.REDIS_TIMEOUT_MS || 250),
+  RATE_LIMIT_FAIL_OPEN: process.env.RATE_LIMIT_FAIL_OPEN !== "false",
   API_URL: process.env.API_URL || `http://localhost:${process.env.PORT || 4000}`,
   DEFAULT_ENV_BASE_URL:
     process.env.DEFAULT_ENV_BASE_URL || "http://localhost:3000",

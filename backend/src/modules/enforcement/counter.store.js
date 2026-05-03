@@ -1,10 +1,27 @@
 import { getRedis } from "../../redis/client.js";
 import { logger } from "../../utils/logger.js";
 import { hashIdentifier } from "../../utils/hash.js";
+import { env } from "../../config/env.js";
 
 const fallbackCounters = new Map();
 const deniedRetryAfterCache = new Map();
 let fallbackWarningLogged = false;
+const REDIS_TIMEOUT_MS = Number(env.REDIS_TIMEOUT_MS || 250);
+const FAIL_OPEN = env.RATE_LIMIT_FAIL_OPEN;
+
+function withTimeout(promise, label) {
+  let timer;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} timed out`);
+      error.code = "REDIS_TIMEOUT";
+      reject(error);
+    }, REDIS_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
 
 // Single atomic Lua script that performs sliding-window cleanup, count,
 // conditional add, expiry enforcement, and computes retryAfter when denied.
@@ -150,21 +167,24 @@ export async function incrementCounter({ ruleId, identifier, windowSeconds, limi
 
   try {
     const redis = await getRedis();
-    const sha = await ensureIncrementScriptLoaded(redis);
+    const sha = await withTimeout(ensureIncrementScriptLoaded(redis), "redis script load");
 
     let rawRes;
 
     if (sha && typeof redis.evalsha === 'function') {
       try {
-        rawRes = await redis.evalsha(
-          sha,
-          2,
-          key,
-          sequenceKey,
-          String(nowMs),
-          String(windowMs),
-          String(limitCount),
-          String(windowSeconds)
+        rawRes = await withTimeout(
+          redis.evalsha(
+            sha,
+            2,
+            key,
+            sequenceKey,
+            String(nowMs),
+            String(windowMs),
+            String(limitCount),
+            String(windowSeconds)
+          ),
+          "redis evalsha"
         );
       } catch (err) {
         // NOSCRIPT -> reload once and fallback to EVAL
@@ -172,26 +192,32 @@ export async function incrementCounter({ ruleId, identifier, windowSeconds, limi
           SLIDING_WINDOW_INCREMENT_SHA = null;
           const newSha = await ensureIncrementScriptLoaded(redis);
           if (newSha && newSha !== sha) {
-            rawRes = await redis.evalsha(
-              newSha,
-              2,
-              key,
-              sequenceKey,
-              String(nowMs),
-              String(windowMs),
-              String(limitCount),
-              String(windowSeconds)
+            rawRes = await withTimeout(
+              redis.evalsha(
+                newSha,
+                2,
+                key,
+                sequenceKey,
+                String(nowMs),
+                String(windowMs),
+                String(limitCount),
+                String(windowSeconds)
+              ),
+              "redis evalsha"
             );
           } else {
-            rawRes = await redis.eval(
-              SLIDING_WINDOW_INCREMENT_SCRIPT,
-              2,
-              key,
-              sequenceKey,
-              String(nowMs),
-              String(windowMs),
-              String(limitCount),
-              String(windowSeconds)
+            rawRes = await withTimeout(
+              redis.eval(
+                SLIDING_WINDOW_INCREMENT_SCRIPT,
+                2,
+                key,
+                sequenceKey,
+                String(nowMs),
+                String(windowMs),
+                String(limitCount),
+                String(windowSeconds)
+              ),
+              "redis eval"
             );
           }
         } else {
@@ -199,19 +225,24 @@ export async function incrementCounter({ ruleId, identifier, windowSeconds, limi
         }
       }
     } else {
-      rawRes = await redis.eval(
-        SLIDING_WINDOW_INCREMENT_SCRIPT,
-        2,
-        key,
-        sequenceKey,
-        String(nowMs),
-        String(windowMs),
-        String(limitCount),
-        String(windowSeconds)
+      rawRes = await withTimeout(
+        redis.eval(
+          SLIDING_WINDOW_INCREMENT_SCRIPT,
+          2,
+          key,
+          sequenceKey,
+          String(nowMs),
+          String(windowMs),
+          String(limitCount),
+          String(windowSeconds)
+        ),
+        "redis eval"
       );
     }
 
+    const t0 = Date.now();
     const [rawAllowed, rawCount, rawRetryAfter] = rawRes;
+    const redisTimeMs = Date.now() - t0;
 
     const allowed = Number(rawAllowed) === 1;
     const count = Number(rawCount);
@@ -221,9 +252,14 @@ export async function incrementCounter({ ruleId, identifier, windowSeconds, limi
       cacheDeniedRetryAfter(key, retryAfter);
     }
 
-    return { count, allowed, earliest: -1 };
+    return { count, allowed, earliest: -1, redisTimeMs };
   } catch (err) {
     logFallbackWarning(err);
+
+    if (!FAIL_OPEN) {
+      return { count: limitCount, allowed: false, earliest: -1 };
+    }
+
     const result = buildFallbackResult(key, windowSeconds, limitCount, now);
 
     if (!result.allowed) {
@@ -231,7 +267,7 @@ export async function incrementCounter({ ruleId, identifier, windowSeconds, limi
       cacheDeniedRetryAfter(key, retryAfter);
     }
 
-    return result;
+    return { ...result, redisTimeMs: 0 };
   }
 }
 
@@ -241,33 +277,42 @@ export async function getRetryAfter({ ruleId, identifier, windowSeconds, now }) 
 
   const cachedRetryAfter = consumeCachedRetryAfter(key);
   if (cachedRetryAfter !== null) {
-    return cachedRetryAfter;
+    return { retryAfter: cachedRetryAfter, redisTimeMs: 0 };
   }
 
   try {
     const redis = await getRedis();
-    const earliestMs = await redis.eval(
-      SLIDING_WINDOW_EARLIEST_SCRIPT,
-      1,
-      key,
-      String(now * 1000),
-      String(windowSeconds * 1000)
+    const t0 = Date.now();
+    const earliestMs = await withTimeout(
+      redis.eval(
+        SLIDING_WINDOW_EARLIEST_SCRIPT,
+        1,
+        key,
+        String(now * 1000),
+        String(windowSeconds * 1000)
+      ),
+      "redis eval"
     );
+    const redisTimeMs = Date.now() - t0;
 
     const retryAfter = calculateRetryAfterFromEarliest(Number(earliestMs), windowSeconds, now);
     if (retryAfter !== windowSeconds) {
-      return retryAfter;
+      return { retryAfter, redisTimeMs };
     }
 
-    return windowSeconds;
+    return { retryAfter: windowSeconds, redisTimeMs };
   } catch (err) {
     logFallbackWarning(err);
 
-    const bucket = getFallbackBucket(key, windowSeconds * 1000, now * 1000);
-    if (!bucket.length) {
+    if (!FAIL_OPEN) {
       return windowSeconds;
     }
 
-    return calculateRetryAfterFromEarliest(bucket[0], windowSeconds, now);
+    const bucket = getFallbackBucket(key, windowSeconds * 1000, now * 1000);
+    if (!bucket.length) {
+      return { retryAfter: windowSeconds, redisTimeMs: 0 };
+    }
+
+    return { retryAfter: calculateRetryAfterFromEarliest(bucket[0], windowSeconds, now), redisTimeMs: 0 };
   }
 }

@@ -1,6 +1,8 @@
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 
 interface Integration {
@@ -166,6 +168,15 @@ const { allowed, remaining } = await response.json();`,
 
 export default function IntegrationsPage() {
   const navigate = useNavigate();
+  const [apiKeyUsage, setApiKeyUsage] = useState<Array<{ key: string; requests: number; blocked: number; blockRate: number }>>([]);
+
+  useEffect(() => {
+    api("/analytics/apikeys?limit=5")
+      .then((response) => setApiKeyUsage(response.apiKeys || []))
+      .catch((err) => {
+        console.error("Failed to load API key usage", err);
+      });
+  }, []);
 
   const handleIntegrationClick = (integration: Integration) => {
     if (integration.id === "nodejs") {
@@ -217,6 +228,31 @@ export default function IntegrationsPage() {
             </Card>
           ))}
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>API Usage</CardTitle>
+            <CardDescription>Most active API keys from the Redis counters</CardDescription>
+          </CardHeader>
+          <div className="space-y-3 px-4 pb-4">
+            {apiKeyUsage.length > 0 ? (
+              apiKeyUsage.map((item) => (
+                <div key={item.key} className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{item.key}</p>
+                    <p className="text-xs text-muted-foreground">{item.requests.toLocaleString()} requests</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-foreground">{item.blocked.toLocaleString()} blocked</p>
+                    <p className="text-xs text-muted-foreground">{item.blockRate}% block rate</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground px-1">No usage data yet.</p>
+            )}
+          </div>
+        </Card>
 
         {/* Quick Start Section */}
         <Card>

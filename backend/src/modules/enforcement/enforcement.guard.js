@@ -28,6 +28,7 @@ export async function enforcementGuard(req, reply) {
     identifier: req.ip,
     endpoint,
     method: req.method,
+    apiKeyId: req.apiKey.id,
     environmentId: env.id,
     now: Math.floor(Date.now() / 1000),
   });
@@ -53,6 +54,8 @@ export async function enforcementGuard(req, reply) {
       .header("Retry-After", result.retryAfter)
       .send({
         error: "Rate limit exceeded",
+        code: "RATE_LIMIT_EXCEEDED",
+        message: "Rate limit exceeded",
         ruleId: result.ruleId,
       });
   }

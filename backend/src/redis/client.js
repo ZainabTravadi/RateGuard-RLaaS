@@ -41,7 +41,7 @@ function createMockRedis() {
 
       throw new Error('Unsupported script command');
     },
-    async evalsha(sha, numKeys, key) {
+    async evalsha(sha, numKeys, ...args) {
       const script = this.scripts.get(sha);
       if (!script) {
         const err = new Error('NOSCRIPT No matching script. Please use EVAL');
@@ -50,12 +50,35 @@ function createMockRedis() {
       }
 
       // forward to eval implementation
-      const args = Array.prototype.slice.call(arguments, 2);
-      return await this.eval(script, ...args);
+      return await this.eval(script, numKeys, ...args);
     },
     async get(key) {
       if (isExpired(key)) return null;
       return store.has(key) ? store.get(key) : null;
+    },
+    async mget(keys) {
+      return Promise.all(keys.map((key) => this.get(key)));
+    },
+    async keys(pattern) {
+      const escaped = String(pattern)
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        .replace(/\\\*/g, ".*")
+        .replace(/\\\?/g, ".");
+
+      const regex = new RegExp(`^${escaped}$`);
+      return [...store.keys()].filter((key) => regex.test(key));
+    },
+    async scan(cursor, ...args) {
+      let matchPattern = "*";
+
+      for (let index = 0; index < args.length; index += 1) {
+        if (String(args[index]).toUpperCase() === "MATCH") {
+          matchPattern = args[index + 1] || "*";
+        }
+      }
+
+      const keys = await this.keys(matchPattern);
+      return ["0", keys];
     },
     async set(key, value) {
       store.set(key, value);
@@ -192,8 +215,13 @@ export async function getRedis() {
     lazyConnect: true,
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
+    connectTimeout: env.NODE_ENV === 'production' ? 10000 : 1000,
     retryStrategy(times) {
       logger.warn({ attempt: times }, "Redis reconnecting");
+      if (env.NODE_ENV !== 'production') {
+        return times >= 1 ? null : 50;
+      }
+
       return Math.min(times * 50, 2000);
     },
   });

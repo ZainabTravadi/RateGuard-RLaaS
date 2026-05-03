@@ -5,13 +5,23 @@ export async function apiKeyGuard(req, reply) {
   const apiKey = req.headers["x-api-key"];
 
   if (!apiKey) {
-    reply.code(401).send({ error: "API key missing" });
+    req.log.warn({ path: req.url, ip: req.ip }, "missing api key");
+    reply.code(401).send({
+      error: "Unauthorized",
+      code: "INVALID_API_KEY",
+      message: "Invalid or missing API key",
+    });
     return;
   }
 
   // Basic format validation
   if (!apiKey.startsWith("rg_")) {
-    reply.code(401).send({ error: "Invalid API key format" });
+    req.log.warn({ path: req.url, ip: req.ip }, "invalid api key format");
+    reply.code(401).send({
+      error: "Unauthorized",
+      code: "INVALID_API_KEY",
+      message: "Invalid or missing API key",
+    });
     return;
   }
 
@@ -23,13 +33,17 @@ export async function apiKeyGuard(req, reply) {
     SELECT id, user_id, key_hash, environment, is_revoked
     FROM api_keys
     WHERE key_prefix = $1
-      AND is_revoked = FALSE
     `,
     [prefix]
   );
 
   if (rows.length === 0) {
-    reply.code(401).send({ error: "Invalid API key" });
+    req.log.warn({ path: req.url, ip: req.ip }, "invalid api key");
+    reply.code(401).send({
+      error: "Unauthorized",
+      code: "INVALID_API_KEY",
+      message: "Invalid or missing API key",
+    });
     return;
   }
 
@@ -45,7 +59,22 @@ export async function apiKeyGuard(req, reply) {
   }
 
   if (!matchedKey) {
-    reply.code(401).send({ error: "Invalid API key" });
+    req.log.warn({ path: req.url, ip: req.ip }, "invalid api key");
+    reply.code(401).send({
+      error: "Unauthorized",
+      code: "INVALID_API_KEY",
+      message: "Invalid or missing API key",
+    });
+    return;
+  }
+
+  if (matchedKey.is_revoked) {
+    req.log.warn({ apiKeyId: matchedKey.id, path: req.url, ip: req.ip }, "revoked api key");
+    reply.code(401).send({
+      error: "Unauthorized",
+      code: "INVALID_API_KEY",
+      message: "Invalid or missing API key",
+    });
     return;
   }
 

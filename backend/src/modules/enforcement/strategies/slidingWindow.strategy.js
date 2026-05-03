@@ -30,16 +30,21 @@ export async function evaluateRule({ rule, identifier, now }, deps = {}) {
     now,
   });
 
+  const redisTimeMs = res.redisTimeMs || 0;
+
   if (res.allowed) {
-    return { allowed: true, count: res.count };
+    return { allowed: true, count: res.count, redisTimeMs };
   }
 
-  const retryAfter = await getRetryAfter({
+  const retryRes = await getRetryAfter({
     ruleId: rule.id,
     identifier,
     windowSeconds: rule.window_seconds,
     now,
   });
 
-  return { allowed: false, count: res.count, retryAfter };
+  const retryAfter = retryRes?.retryAfter ?? retryRes;
+  const retryRedisMs = retryRes?.redisTimeMs || 0;
+
+  return { allowed: false, count: res.count, retryAfter, redisTimeMs: redisTimeMs + retryRedisMs };
 }

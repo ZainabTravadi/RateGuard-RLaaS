@@ -10,7 +10,7 @@ export async function getRules(req, reply) {
   const { environmentId } = req.query;
 
   if (!environmentId) {
-    return reply.code(400).send({ error: "environmentId required" });
+    return reply.code(400).send({ error: "environmentId required", code: "MISSING_ENVIRONMENT_ID" });
   }
 
   const rules = await getRulesByUser(
@@ -26,7 +26,7 @@ export async function createRuleHandler(req, reply) {
   const { environmentId } = req.query;
 
   if (!environmentId) {
-    return reply.code(400).send({ error: "environmentId required" });
+    return reply.code(400).send({ error: "environmentId required", code: "MISSING_ENVIRONMENT_ID" });
   }
 
   const rule = await createRule({
@@ -54,6 +54,7 @@ export async function deleteRuleHandler(req, reply) {
   if (!environmentId || environmentId === "null") {
     return reply.code(400).send({
       error: "environmentId required",
+      code: "MISSING_ENVIRONMENT_ID",
       received: environmentId,
     });
   }
@@ -63,6 +64,7 @@ export async function deleteRuleHandler(req, reply) {
   if (deletedCount === 0) {
     return reply.code(404).send({
       error: "Rule not found or environment mismatch",
+      code: "RULE_NOT_FOUND",
     });
   }
 

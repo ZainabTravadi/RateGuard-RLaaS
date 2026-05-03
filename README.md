@@ -1,157 +1,108 @@
-# 🔵 RateGuard
+# RateGuard 🚀
 
-A developer-first platform for rate limiting as a service. Protect any API endpoint with a lightweight SDK while managing rules, analytics, and configuration via a web dashboard.
+Production-grade Rate Limiting as a Service (RLaaS)
 
----
-
-## 📘 Overview
-RateGuard provides a unified way to enforce rate limits across APIs without reinventing infrastructure. Developers add minimal middleware to routes they choose; RateGuard handles decisioning, analytics, and configuration centrally. This keeps your application code clean and your limits consistent.
+RateGuard helps teams protect APIs with fast, centralized rate limiting, adaptive enforcement, analytics, and a lightweight Node.js SDK. It is built for production systems that need predictable control, observability, and easy integration.
 
 ---
 
-## 🧠 Architecture
-- **Frontend (Dashboard)**: React + Vite application for managing API keys, rules, analytics, and logs.
-- **Backend (Service API)**: Fastify-based service exposing endpoints for auth, rules, enforcement, analytics, and logging.
-- **SDKs**: Lightweight client libraries (starting with Node.js) to integrate per-route protection and communicate with RateGuard.
+## 🔥 Key Features
+
+- Redis + Lua sliding window rate limiting
+- Adaptive rate limiting with progressive throttling
+- Analytics dashboard for visibility and control
+- SDK for fast integration in Node.js services
+- Fault-tolerant behavior with fail-open support
 
 ---
 
-## 🧩 Repository Structure
+## 📦 Install SDK
+
+```bash
+npm install @rateguard/node
 ```
+
+---
+
+## ⚡ Quick Start
+
+```js
+import express from "express";
+import { RateGuard } from "@rateguard/node";
+
+const app = express();
+
+RateGuard.init({
+  apiKey: "your_api_key",
+  baseUrl: "http://localhost:4000"
+});
+
+app.use(RateGuard.middleware());
+
+app.get("/", (req, res) => {
+  res.send("Hello RateGuard");
+});
+
+app.listen(3000);
+```
+
+---
+
+## 🧠 How It Works
+
+RateGuard uses a Redis sliding window algorithm to track request activity over time and enforce limits with precision. Lua scripting keeps each check atomic, reducing race conditions and ensuring the limiter remains consistent under load. Smart mode adds adaptive behavior, so repeated abuse can trigger progressive throttling instead of a single static response.
+
+---
+
+## ⚙️ Architecture Overview
+
+- Backend: Node.js service with Redis-backed enforcement and rule management
+- Frontend: React dashboard for analytics, logs, and configuration
+- SDK layer: `@rateguard/node` for app-level integration and request protection
+
+---
+
+## 📊 Performance
+
+- Low latency, typically around 3–10ms for enforcement checks in a healthy environment
+- Single Redis call via Lua for atomic decisioning
+- Scalable design suited for modern API traffic patterns
+
+---
+
+## 🔐 Security
+
+- API key validation for protected service access
+- Rate-limited auth routes to reduce abuse
+- Safe error handling with fail-open support for resilient deployments
+
+---
+
+## 📁 Project Structure
+
+```text
 RateGuard/
-├─ backend/                # Service API (Fastify)
-│  ├─ src/
-│  │  ├─ app.js
-│  │  ├─ server.js
-│  │  ├─ config/
-│  │  ├─ db/
-│  │  ├─ middleware/
-│  │  ├─ modules/          # auth, rules, analytics, enforcement, etc.
-│  │  ├─ redis/
-│  │  ├─ routes/
-│  │  └─ utils/
-│  ├─ migrations/
-│  ├─ package.json
-│  └─ Procfile
-├─ frontend/               # React + Vite dashboard
-│  ├─ src/
-│  │  ├─ pages/            # Docs, Integrations, Analytics, Logs, etc.
-│  │  ├─ components/
-│  │  ├─ context/
-│  │  └─ lib/
-│  ├─ package.json
-│  └─ vite.config.ts
-└─ rateguard-node/         # Node.js SDK (@rateguard/node)
-   ├─ src/
-   ├─ package.json
-   └─ README.md
+├── backend/
+├── frontend/
+└── rateguard-node/
 ```
 
 ---
 
-## ⚙️ How It Works
-- The **SDK** initializes once at app startup with your API key.
-- You **apply middleware** only to routes you want protected (e.g., `POST /api/your-endpoint`).
-- On each protected request, the SDK performs a fast **limit check** with the RateGuard backend.
-- The backend evaluates **rules** (per endpoint/method/identifier) and returns allow/deny with metadata.
-- Your app continues normally if allowed, or returns **429** with `Retry-After` headers if limited.
-- **Analytics & logs** capture traffic and limit events for monitoring in the dashboard.
+## 🚀 Roadmap
+
+- Additional SDKs for Python and Go
+- Dashboard improvements for analytics and rule management
+- Distributed scaling for larger deployments
 
 ---
 
-## 🔷 Features
-- **Per-route protection**: Choose exactly which endpoints to guard.
-- **Configurable limits**: Per endpoint/method with flexible windows.
-- **Identifiers**: IP, user ID, API key, or custom.
-- **Observability**: Real-time analytics and logs.
-- **Fail-open** and **timeouts**: Resilient behavior for production.
-- **Minimal code**: Initialize SDK once, add simple middleware.
+## 🤝 Contributing
+
+Contributions are welcome. If you want to help, fork the repository, create a feature branch, make your changes, and open a pull request with a clear summary of what changed.
 
 ---
 
-## 🟦 Local Development
+## 📄 License
 
-## Getting Started
-
-1. Install dependencies in each package:
-```bash
-cd backend && npm install
-cd ../frontend && npm install
-cd ../rateguard-node && npm install
-```
-
-2. Start Redis locally:
-```bash
-redis-server
-```
-
-3. Start the backend:
-```bash
-cd backend
-cp .env.example .env
-npm run dev
-```
-
-4. Start the frontend:
-```bash
-cd frontend
-cp .env.example .env
-npm run dev
-```
-
-5. Test the backend health endpoint:
-```bash
-curl http://localhost:4000/v1/health
-```
-
-### Frontend (Dashboard)
-```bash
-cd frontend
-npm install
-npm run dev
-```
-- Vite dev server starts locally and reads `VITE_API_URL` from the environment.
-
-### Backend (Service API)
-```bash
-cd backend
-npm install
-npm run dev
-```
-- Starts the Fastify server via `src/server.js`.
-- Required local environment variables are documented in `backend/.env.example`.
-- Redis is optional in development; the server falls back to an in-memory mock if `REDIS_URL` is unset.
-
-### SDK (Node.js)
-```bash
-cd rateguard-node
-npm install
-npm run build
-```
-- Builds TypeScript to `dist/`.
-- The SDK defaults to `http://localhost:4000` unless `RATEGUARD_URL` or `baseUrl` is provided.
-
----
-
-## 🚀 Deployment
-- **Frontend**: Deploy with Vercel or similar static hosts.
-- **Backend**: Deploy to Heroku or a Node-friendly host with environment variables and a database.
-- **SDK**: Publish to npm via `npm publish` (handled by `prepublishOnly` build script).
-
----
-
-## 💙 Project Status / Roadmap
-- **Current**: Node.js SDK, dashboard for rules/analytics, Fastify backend.
-- **Near-term**: Additional SDKs (Python/Java), enhanced analytics, refined identifiers.
-- **Ongoing**: Performance tuning, rule management UX, documentation improvements.
-
----
-
-## 🔹 Links
-- **Dashboard**: See repository folder — `frontend/`
-- **Docs**: Source in `frontend/src/pages/Docs.tsx`
-- **Node SDK**: `rateguard-node/` (npm package name: `@rateguard/node`)
-
----
-
-Made by Zainab Travadi — <a href="https://www.linkedin.com/in/zainab-travadi-119a83373/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+MIT License

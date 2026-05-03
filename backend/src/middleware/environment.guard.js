@@ -28,6 +28,7 @@ export async function environmentGuard(req, reply) {
       console.error("❌ No active environment for user", userId);
       return reply.code(400).send({
         error: "No active environment found",
+        code: "NO_ACTIVE_ENVIRONMENT",
       });
     }
 
@@ -35,6 +36,9 @@ export async function environmentGuard(req, reply) {
     console.log("✅ Environment resolved:", rows[0].id);
   } catch (err) {
     console.error("❌ Environment guard failed:", err);
-    reply.code(500).send({ error: "Environment resolution failed" });
+    reply.code(500).send({
+      error: "Environment resolution failed",
+      code: "ENVIRONMENT_RESOLUTION_FAILED",
+    });
   }
 }

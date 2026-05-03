@@ -25,12 +25,12 @@ export function middleware(options: MiddlewareOptions = {}) {
   const routeWindowSec = parseWindowToSeconds(options.window, 60);
   const failOpen = options.failOpen !== undefined ? options.failOpen : true;
   const debug = options.debug !== undefined ? options.debug : cfg.debug;
+  const smartMode = options.smartMode ?? false;
 
   return (async function rateGuardMiddleware(req: Request, res: Response, next: NextFunction) {
     res.setHeader('X-RateGuard-Version', SDK_VERSION);
 
     if (options.skip?.(req)) {
-      if (debug) console.debug('[RateGuard] middleware skipped');
       return next();
     }
 
@@ -38,10 +38,8 @@ export function middleware(options: MiddlewareOptions = {}) {
     const endpoint = req.path || String(req.originalUrl || req.url).split('?')[0];
     const method = req.method;
 
-    if (debug) console.debug('[RateGuard] middleware payload', { identifier, endpoint, method, routeLimit, routeWindowSec, failOpen });
-
     try {
-      const result = await checkRateLimit({ identifier, endpoint, method });
+      const result = await checkRateLimit({ identifier, endpoint, method, smartMode });
 
       // Set standard headers when available
       if (typeof result.retryAfter === 'number') {
@@ -54,28 +52,28 @@ export function middleware(options: MiddlewareOptions = {}) {
       }
 
       if (!result.allowed) {
-        if (debug) {
-          console.debug(`[RateGuard] Request blocked (retryAfter: ${result.retryAfter ?? 0})`);
-        }
         res.status(429).json({
           error: 'Too many requests',
           message: 'Rate limit exceeded',
           retryAfter: result.retryAfter,
           limit: result.limit ?? routeLimit,
           remaining: result.remaining ?? 0,
+          warning: result.warning ?? false,
+          reason: result.reason,
+          violations: result.violations,
         });
         return;
       }
 
-      if (debug) console.debug('[RateGuard] Request allowed');
+      if (result.warning) {
+        res.setHeader('X-RateGuard-Warning', 'true');
+      }
 
       next();
     } catch (err) {
       const error = err as Error & { code?: string };
-      if (debug) console.warn('[RateGuard] middleware error', { code: error?.code, message: error?.message });
 
       if (failOpen) {
-        if (debug) console.debug('[RateGuard] Request allowed (failOpen)');
         return next();
       }
 
@@ -104,14 +102,6 @@ export async function limit(opts: LimitOptions, options: LimitCallOptions = {}):
       method,
     });
 
-    if (debug) {
-      if (res.allowed) {
-        console.debug('[RateGuard] Request allowed');
-      } else {
-        console.debug(`[RateGuard] Request blocked (retryAfter: ${res.retryAfter ?? 0})`);
-      }
-    }
-
     return {
       allowed: res.allowed,
       limit: res.limit ?? 0,
@@ -119,10 +109,13 @@ export async function limit(opts: LimitOptions, options: LimitCallOptions = {}):
       retryAfter: res.retryAfter,
       reset: res.reset ?? null,
       ruleId: res.ruleId ?? null,
+      warning: res.warning,
+      message: res.message,
+      reason: res.reason,
+      violations: res.violations,
     };
   } catch (err) {
     if (failOpen) {
-      if (debug) console.debug('[RateGuard] Request allowed (failOpen)');
       return { allowed: true, limit: 0, remaining: 0 };
     }
     throw err;

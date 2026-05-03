@@ -31,8 +31,21 @@ interface LogEntry {
   responseTime: number;
 }
 
+interface AnalyticsSummary {
+  totalRequests: number;
+  blockedRequests: number;
+  blockRate: number;
+  topEndpoints: Array<{
+    key: string;
+    requests: number;
+    blocked: number;
+    blockRate: number;
+  }>;
+}
+
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,14 +58,18 @@ export default function LogsPage() {
 
     setLoading(true);
 
-    api(
-      `/logs?search=${encodeURIComponent(
-        searchQuery
-      )}&status=${statusFilter}&page=${currentPage}`
-    )
-      .then((data) => {
+    Promise.all([
+      api(
+        `/logs?search=${encodeURIComponent(
+          searchQuery
+        )}&status=${statusFilter}&page=${currentPage}`
+      ),
+      api("/analytics/overview")
+    ])
+      .then(([data, analytics]) => {
         if (!cancelled) {
           setLogs(data);
+          setSummary(analytics);
         }
       })
       .finally(() => {
@@ -144,6 +161,30 @@ export default function LogsPage() {
             {exporting ? "Exporting..." : "Export Logs"}
           </Button>
         </div>
+
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <div className="p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Requests</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{summary.totalRequests.toLocaleString()}</p>
+              </div>
+            </Card>
+            <Card>
+              <div className="p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Blocked</p>
+                <p className="mt-2 text-2xl font-semibold text-danger">{summary.blockedRequests.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{summary.blockRate}% block rate</p>
+              </div>
+            </Card>
+            <Card>
+              <div className="p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Top Endpoint</p>
+                <p className="mt-2 text-sm font-mono text-foreground">{summary.topEndpoints[0]?.key || "N/A"}</p>
+              </div>
+            </Card>
+          </div>
+        )}
 
         {/* Filters */}
         <Card>

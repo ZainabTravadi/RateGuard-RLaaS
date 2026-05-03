@@ -1,10 +1,42 @@
 import { db } from "../../db/index.js";
 import { randomUUID } from "crypto";
 
+// Simple in-memory cache for rules to avoid DB hits for every request
+const RULE_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const ruleCache = new Map(); // key -> { expiresAt, rows }
+
+function cacheKey(userId, environmentId) {
+  return `${userId}:${environmentId}`;
+}
+
+function getCachedRules(userId, environmentId) {
+  const key = cacheKey(userId, environmentId);
+  const entry = ruleCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    ruleCache.delete(key);
+    return null;
+  }
+  return entry.rows;
+}
+
+function setCachedRules(userId, environmentId, rows) {
+  const key = cacheKey(userId, environmentId);
+  ruleCache.set(key, { expiresAt: Date.now() + RULE_CACHE_TTL_MS, rows });
+}
+
+function invalidateRuleCache(userId, environmentId) {
+  const key = cacheKey(userId, environmentId);
+  ruleCache.delete(key);
+}
+
 /**
  * READ — user scoped rules
  */
 export async function getRulesByUser(userId, environmentId) {
+  const cached = getCachedRules(userId, environmentId);
+  if (cached) return cached;
+
   const { rows } = await db.query(
     `
     SELECT *
@@ -16,7 +48,8 @@ export async function getRulesByUser(userId, environmentId) {
     [userId, environmentId]
   );
 
-  return rows;
+  setCachedRules(userId, environmentId, rows);
+    return rows;
 }
 
 /**
@@ -66,7 +99,17 @@ export async function createRule({
     ]
   );
 
-  return rows[0];
+    const res = rows[0];
+    // invalidate cache for this user's environment
+    invalidateRuleCache(res.user_id, res.environment_id);
+    return res;
+}
+
+// Ensure cache invalidation on modifications
+export async function createRuleAndInvalidate(payload) {
+  const r = await createRule(payload);
+  invalidateRuleCache(payload.userId, payload.environmentId);
+  return r;
 }
 
 /**
@@ -83,7 +126,17 @@ export async function toggleRule(ruleId, userId) {
     [ruleId, userId]
   );
 
-  return rows[0];
+    const res = rows[0];
+    if (res) invalidateRuleCache(res.user_id, res.environment_id);
+    return res;
+}
+
+export async function toggleRuleAndInvalidate(ruleId, userId) {
+  const res = await toggleRule(ruleId, userId);
+  if (res) {
+    invalidateRuleCache(res.user_id, res.environment_id);
+  }
+  return res;
 }
 
 /**
@@ -98,7 +151,15 @@ export async function deleteRule(ruleId, userId, environmentId) {
     [ruleId, userId, environmentId]
   );
 
-  return result.rowCount;
+    const count = result.rowCount;
+    if (count) invalidateRuleCache(userId, environmentId);
+    return count;
+}
+
+export async function deleteRuleAndInvalidate(ruleId, userId, environmentId) {
+  const count = await deleteRule(ruleId, userId, environmentId);
+  invalidateRuleCache(userId, environmentId);
+  return count;
 }
 
 /**
@@ -129,5 +190,13 @@ export async function updateRule(ruleId, userId, environmentId, updates) {
     ]
   );
 
-  return rows[0];
+    const res = rows[0];
+    if (res) invalidateRuleCache(userId, environmentId);
+    return res;
+}
+
+export async function updateRuleAndInvalidate(ruleId, userId, environmentId, updates) {
+  const r = await updateRule(ruleId, userId, environmentId, updates);
+  invalidateRuleCache(userId, environmentId);
+  return r;
 }

@@ -43,8 +43,34 @@ interface OverviewData {
   };
 }
 
+interface AnalyticsSummary {
+  totalRequests: number;
+  allowedRequests: number;
+  blockedRequests: number;
+  blockRate: number;
+  topEndpoints: Array<{
+    key: string;
+    requests: number;
+    blocked: number;
+    blockRate: number;
+  }>;
+  recentHours: Array<{
+    key: string;
+    requests: number;
+    blocked: number;
+    blockRate: number;
+  }>;
+  recentDays: Array<{
+    key: string;
+    requests: number;
+    blocked: number;
+    blockRate: number;
+  }>;
+}
+
 export default function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,12 +79,18 @@ export default function OverviewPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await api("/overview");
-        if (response.success) {
-          setData(response.data);
+        const [overviewResponse, analyticsResponse] = await Promise.all([
+          api("/overview"),
+          api("/analytics/overview")
+        ]);
+
+        if (overviewResponse.success) {
+          setData(overviewResponse.data);
         } else {
-          setError(response.message || "Failed to fetch data");
+          setError(overviewResponse.message || "Failed to fetch data");
         }
+
+        setAnalyticsSummary(analyticsResponse);
       } catch (err) {
         console.error("Error fetching overview data:", err);
         if (err instanceof Error) {
@@ -113,6 +145,50 @@ export default function OverviewPage() {
           </div>
           <StatusBadge status="healthy" />
         </div>
+
+        {analyticsSummary && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatCard
+              title="Tracked Requests"
+              value={analyticsSummary.totalRequests.toLocaleString()}
+              change="Redis counters"
+              changeType="neutral"
+              icon={Activity}
+            />
+            <StatCard
+              title="Tracked Blocks"
+              value={analyticsSummary.blockedRequests.toLocaleString()}
+              change={`${analyticsSummary.blockRate}% block rate`}
+              changeType="neutral"
+              icon={Ban}
+              iconColor="text-danger"
+            />
+            <StatCard
+              title="Allowed Requests"
+              value={analyticsSummary.allowedRequests.toLocaleString()}
+              change={`${analyticsSummary.topEndpoints[0]?.key || "No endpoints yet"}`}
+              changeType="positive"
+              icon={TrendingUp}
+            />
+          </div>
+        )}
+
+        {analyticsSummary?.recentHours?.length ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Requests Per Hour</CardTitle>
+            </CardHeader>
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 px-4 pb-4">
+              {analyticsSummary.recentHours.slice(0, 6).map((item) => (
+                <div key={item.key} className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">{item.key}</p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{item.requests.toLocaleString()}</p>
+                  <p className="text-xs text-danger">{item.blocked.toLocaleString()} blocked</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : null}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -276,7 +352,7 @@ export default function OverviewPage() {
           <div className="space-y-1">
             {data.activity && data.activity.length > 0 ? (
               data.activity.map((item) => (
-                <div key={item.id} className="table-row flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
+                <div key={item.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-4 flex-1">
                     <div className={`h-2 w-2 rounded-full flex-shrink-0 ${
                       item.status === "blocked" ? "bg-danger" : 

@@ -19,7 +19,7 @@ export async function signup(req, reply) {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return reply.code(400).send({ error: "Email and password required" });
+    return reply.code(400).send({ error: "Email and password required", code: "MISSING_CREDENTIALS" });
   }
 
   const normalizedEmail = email.toLowerCase();
@@ -51,7 +51,7 @@ export async function signup(req, reply) {
     );
   } catch (err) {
     if (err.code === "23505") {
-      return reply.code(409).send({ error: "User already exists" });
+      return reply.code(409).send({ error: "User already exists", code: "USER_ALREADY_EXISTS" });
     }
     throw err;
   }
@@ -70,7 +70,7 @@ export async function login(req, reply) {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return reply.code(400).send({ error: "Email and password required" });
+    return reply.code(400).send({ error: "Email and password required", code: "MISSING_CREDENTIALS" });
   }
 
   const { rows } = await db.query(
@@ -83,12 +83,12 @@ export async function login(req, reply) {
   );
 
   if (!rows.length) {
-    return reply.code(401).send({ error: "Invalid credentials" });
+    return reply.code(401).send({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
   }
 
   const valid = await bcrypt.compare(password, rows[0].password_hash);
   if (!valid) {
-    return reply.code(401).send({ error: "Invalid credentials" });
+    return reply.code(401).send({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
   }
 
   const token = jwt.sign(
@@ -115,7 +115,7 @@ export async function me(req, reply) {
   );
 
   if (!userRes.rows.length) {
-    return reply.code(404).send({ error: "User not found" });
+    return reply.code(404).send({ error: "User not found", code: "USER_NOT_FOUND" });
   }
 
   // 🔥 FETCH ACTIVE ENVIRONMENT
@@ -142,7 +142,7 @@ export async function forgotPassword(req, reply) {
   const { email } = req.body;
 
   if (!email) {
-    return reply.code(400).send({ error: "Email is required" });
+    return reply.code(400).send({ error: "Email is required", code: "MISSING_EMAIL" });
   }
 
   const normalizedEmail = email.toLowerCase();
@@ -169,7 +169,7 @@ export async function forgotPassword(req, reply) {
     reply.send({ success: true, message: "OTP sent to your email" });
   } catch (err) {
     console.error("Forgot password error:", err);
-    return reply.code(500).send({ error: "Failed to process request" });
+    return reply.code(500).send({ error: "Failed to process request", code: "INTERNAL_ERROR" });
   }
 }
 
@@ -178,14 +178,14 @@ export async function verifyOTP(req, reply) {
   const { email, otp } = req.body;
 
   if (!email || !otp) {
-    return reply.code(400).send({ error: "Email and OTP are required" });
+    return reply.code(400).send({ error: "Email and OTP are required", code: "MISSING_OTP" });
   }
 
   try {
     const result = await verifyPasswordResetOTP(email, otp);
 
     if (!result.valid) {
-      return reply.code(400).send({ error: result.error });
+      return reply.code(400).send({ error: result.error, code: "INVALID_INPUT" });
     }
 
     reply.send({
@@ -195,7 +195,7 @@ export async function verifyOTP(req, reply) {
     });
   } catch (err) {
     console.error("OTP verification error:", err);
-    return reply.code(500).send({ error: "Failed to verify OTP" });
+    return reply.code(500).send({ error: "Failed to verify OTP", code: "INTERNAL_ERROR" });
   }
 }
 
@@ -204,7 +204,7 @@ export async function resetPassword(req, reply) {
   const { email, otp, password } = req.body;
 
   if (!email || !otp || !password) {
-    return reply.code(400).send({ error: "Email, OTP, and password are required" });
+    return reply.code(400).send({ error: "Email, OTP, and password are required", code: "MISSING_INPUT" });
   }
 
   try {
@@ -212,14 +212,14 @@ export async function resetPassword(req, reply) {
     const result = await verifyPasswordResetOTP(email, otp);
 
     if (!result.valid) {
-      return reply.code(400).send({ error: result.error });
+      return reply.code(400).send({ error: result.error, code: "INVALID_INPUT" });
     }
 
     // Update password
     const updateResult = await updateUserPassword(email, password);
 
     if (!updateResult.success) {
-      return reply.code(400).send({ error: updateResult.error });
+      return reply.code(400).send({ error: updateResult.error, code: "INVALID_INPUT" });
     }
 
     // Mark OTP as used
@@ -243,6 +243,6 @@ export async function resetPassword(req, reply) {
     });
   } catch (err) {
     console.error("Reset password error:", err);
-    return reply.code(500).send({ error: "Failed to reset password" });
+    return reply.code(500).send({ error: "Failed to reset password", code: "INTERNAL_ERROR" });
   }
 }
