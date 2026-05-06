@@ -8,6 +8,10 @@ function createClientError(message: string, code: string, status?: number): Erro
   return err;
 }
 
+function hasCode(error: unknown): error is Error & { code?: string } {
+  return error instanceof Error && "code" in error;
+}
+
 export async function checkRateLimit(payload: {
   identifier: string;
   endpoint: string;
@@ -19,6 +23,10 @@ export async function checkRateLimit(payload: {
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    if (debug) {
+      console.log(`[RateGuard] Checking rate limit at ${baseUrl}/v1/check`, payload);
+    }
+
     const res = await fetch(`${baseUrl}/v1/check`, {
       method: "POST",
       headers: {
@@ -32,28 +40,71 @@ export async function checkRateLimit(payload: {
     clearTimeout(timeout);
 
     // Try to read JSON body safely
-    let body: any = null;
-    try { body = await res.json(); } catch (e) { body = null; }
-
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        throw createClientError('RateGuard authentication failed: missing or invalid API key', 'AUTH_ERROR', res.status);
-      }
-
-      throw createClientError(`RateGuard API request failed with status ${res.status}`, 'API_ERROR', res.status);
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
     }
 
-    // Successful response - normalize fields
-    const allowed = body?.allowed !== false;
-    const limit = Number(body?.limit ?? 0) || 0;
-    const remaining = Number(body?.remaining ?? 0) || 0;
-    const reset = body?.reset ?? null;
-    const retryAfter = body?.retryAfter ?? undefined;
-    const ruleId = body?.ruleId ?? null;
-    const warning = body?.warning ?? undefined;
-    const message = body?.message ?? undefined;
-    const reason = body?.reason ?? undefined;
-    const violations = body?.violations ?? undefined;
+    const responseBody = body as {
+      error?: string;
+      message?: string;
+      allowed?: boolean;
+      limit?: number | string;
+      remaining?: number | string;
+      reset?: unknown;
+      retryAfter?: unknown;
+      ruleId?: unknown;
+      warning?: unknown;
+      reason?: unknown;
+      violations?: unknown;
+    } | null;
+
+    if (!res.ok) {
+      const errorMsg = responseBody?.error ?? responseBody?.message ?? "Unknown error";
+      
+      if (res.status === 401 || res.status === 403) {
+        const msg = `RateGuard authentication failed (${res.status}): missing or invalid API key. Backend: ${baseUrl}`;
+        throw createClientError(msg, 'AUTH_ERROR', res.status);
+      }
+
+      const msg = `RateGuard API request failed with status ${res.status}: ${errorMsg}. Backend: ${baseUrl}`;
+      throw createClientError(msg, 'API_ERROR', res.status);
+    }
+
+    // Successful response - normalize fields and coerce types to the SDK types
+  const allowed = responseBody?.allowed !== false;
+  const limit = Number(responseBody?.limit ?? 0) || 0;
+  const remaining = Number(responseBody?.remaining ?? 0) || 0;
+
+  const rawReset = responseBody?.reset;
+  const reset = typeof rawReset === "number"
+    ? rawReset
+    : (typeof rawReset === "string" ? (Number(rawReset) || null) : null);
+
+  const rawRetry = responseBody?.retryAfter;
+  const retryAfter = typeof rawRetry === "number"
+    ? rawRetry
+    : (typeof rawRetry === "string" ? (Number(rawRetry) || undefined) : undefined);
+
+  const rawRuleId = responseBody?.ruleId;
+  const ruleId = typeof rawRuleId === "string" ? rawRuleId : null;
+
+  const rawWarning = responseBody?.warning;
+  const warning = typeof rawWarning === "boolean" ? rawWarning : undefined;
+
+  const message = typeof responseBody?.message === "string" ? responseBody?.message : undefined;
+  const reason = typeof responseBody?.reason === "string" ? responseBody?.reason : undefined;
+
+  const rawViolations = responseBody?.violations;
+  const violations = typeof rawViolations === "number"
+    ? rawViolations
+    : (typeof rawViolations === "string" ? (Number(rawViolations) || undefined) : undefined);
+
+    if (debug) {
+      console.log(`[RateGuard] Rate limit decision:`, { allowed, limit, remaining, ruleId });
+    }
 
     const result: RateLimitResult = {
       allowed,
@@ -70,11 +121,25 @@ export async function checkRateLimit(payload: {
 
     return result;
   } catch (error) {
-    clearTimeout(timeout);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw createClientError(`RateGuard request timeout after ${timeoutMs}ms`, 'TIMEOUT');
+      const msg = `RateGuard request timeout after ${timeoutMs}ms. Backend: ${baseUrl}`;
+      throw createClientError(msg, 'TIMEOUT');
     }
 
-    throw createClientError('RateGuard API unreachable', 'NETWORK_ERROR');
+    if (hasCode(error)) {
+      if (debug) {
+        console.warn("[RateGuard] Request failed with code:", error.code, error.message);
+      }
+      throw error;
+    }
+
+    if (debug) {
+      console.warn("[RateGuard] Request failed:", error instanceof Error ? error.message : String(error));
+    }
+
+    const msg = `RateGuard API unreachable (network error). Backend: ${baseUrl}`;
+    throw createClientError(msg, 'NETWORK_ERROR');
+  } finally {
+    clearTimeout(timeout);
   }
 }

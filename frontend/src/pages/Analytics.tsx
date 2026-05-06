@@ -15,6 +15,7 @@ import {
   Legend
 } from "recharts";
 import { api } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 const timeSeriesData = [
@@ -52,20 +53,41 @@ const topEndpoints = [
 ];
 
 export default function AnalyticsPage() {
-  const [timeRange, setTimeRange] = useState("24h");
+  const [timeRange, setTimeRange] = useState("30d");
 
   // 🔥 replace static data with state
   const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
   const [allowedVsBlockedData, setAllowedVsBlockedData] = useState<any[]>([]);
   const [topEndpoints, setTopEndpoints] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // 🔥 ADD useEffect HERE (before return)
   useEffect(() => {
-    api(`/analytics?range=${timeRange}`).then((res) => {
-      setTimeSeriesData(res.timeSeries);
-      setAllowedVsBlockedData(res.allowedVsBlocked);
-      setTopEndpoints(res.topEndpoints);
-    });
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await api(`/analytics?range=${timeRange}`);
+        if (cancelled) return;
+        console.log("FRONTEND ANALYTICS", res);
+        setTimeSeriesData(res.timeSeries || []);
+        setAllowedVsBlockedData(res.allowedVsBlocked || []);
+        setTopEndpoints(res.topEndpoints || []);
+      } catch (err) {
+        console.error("Failed to load analytics:", err);
+        setError("Failed to load analytics. Please try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [timeRange]);
 
   return (
@@ -100,36 +122,53 @@ export default function AnalyticsPage() {
               <CardTitle>Requests per Second</CardTitle>
             </CardHeader>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={timeSeriesData}>
-                  <defs>
-                    <linearGradient id="colorRps" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
-                  <XAxis dataKey="time" stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(222, 47%, 8%)",
-                      border: "1px solid hsl(222, 30%, 18%)",
-                      borderRadius: "8px",
-                    }}
-                    labelStyle={{ color: "hsl(210, 40%, 98%)" }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="rps"
-                    stroke="hsl(217, 91%, 60%)"
-                    fillOpacity={1}
-                    fill="url(#colorRps)"
-                    strokeWidth={2}
-                    name="Requests/sec"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="w-full px-6">
+                    <Skeleton className="h-6 w-1/3 mb-4" />
+                    <Skeleton className="h-40 w-full" />
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="h-full flex items-center justify-center text-red-500">
+                  {error}
+                </div>
+              ) : timeSeriesData.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-muted-foreground">No activity in last 30 days</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={timeSeriesData}>
+                    <defs>
+                      <linearGradient id="colorRps" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
+                    <XAxis dataKey="time" stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(222, 47%, 8%)",
+                        border: "1px solid hsl(222, 30%, 18%)",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "hsl(210, 40%, 98%)" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="rps"
+                      stroke="hsl(217, 91%, 60%)"
+                      fillOpacity={1}
+                      fill="url(#colorRps)"
+                      strokeWidth={2}
+                      name="Requests/sec"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </Card>
 
@@ -139,24 +178,41 @@ export default function AnalyticsPage() {
               <CardTitle>Allowed vs Blocked Requests</CardTitle>
             </CardHeader>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={allowedVsBlockedData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
-                  <XAxis dataKey="name" stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(222, 47%, 8%)",
-                      border: "1px solid hsl(222, 30%, 18%)",
-                      borderRadius: "8px",
-                    }}
-                    labelStyle={{ color: "hsl(210, 40%, 98%)" }}
-                  />
-                  <Legend />
-                  <Bar dataKey="allowed" fill="hsl(142, 76%, 45%)" name="Allowed" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="blocked" fill="hsl(0, 84%, 60%)" name="Blocked" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="w-full px-6">
+                    <Skeleton className="h-6 w-1/3 mb-4" />
+                    <Skeleton className="h-40 w-full" />
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="h-full flex items-center justify-center text-red-500">
+                  {error}
+                </div>
+              ) : allowedVsBlockedData.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-muted-foreground">No activity in last 30 days</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={allowedVsBlockedData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
+                    <XAxis dataKey="name" stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(222, 47%, 8%)",
+                        border: "1px solid hsl(222, 30%, 18%)",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "hsl(210, 40%, 98%)" }}
+                    />
+                    <Legend />
+                    <Bar dataKey="allowed" fill="hsl(142, 76%, 45%)" name="Allowed" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="blocked" fill="hsl(0, 84%, 60%)" name="Blocked" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </Card>
 
@@ -166,49 +222,66 @@ export default function AnalyticsPage() {
               <CardTitle>Traffic Over Time</CardTitle>
             </CardHeader>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={timeSeriesData}>
-                  <defs>
-                    <linearGradient id="colorAllowed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorBlockedArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
-                  <XAxis dataKey="time" stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(222, 47%, 8%)",
-                      border: "1px solid hsl(222, 30%, 18%)",
-                      borderRadius: "8px",
-                    }}
-                    labelStyle={{ color: "hsl(210, 40%, 98%)" }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="allowed"
-                    stackId="1"
-                    stroke="hsl(142, 76%, 45%)"
-                    fill="url(#colorAllowed)"
-                    strokeWidth={2}
-                    name="Allowed"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="blocked"
-                    stackId="1"
-                    stroke="hsl(0, 84%, 60%)"
-                    fill="url(#colorBlockedArea)"
-                    strokeWidth={2}
-                    name="Blocked"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="w-full px-6">
+                    <Skeleton className="h-6 w-1/3 mb-4" />
+                    <Skeleton className="h-40 w-full" />
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="h-full flex items-center justify-center text-red-500">
+                  {error}
+                </div>
+              ) : timeSeriesData.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-muted-foreground">No activity in last 30 days</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={timeSeriesData}>
+                    <defs>
+                      <linearGradient id="colorAllowed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorBlockedArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
+                    <XAxis dataKey="time" stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(222, 47%, 8%)",
+                        border: "1px solid hsl(222, 30%, 18%)",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "hsl(210, 40%, 98%)" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="allowed"
+                      stackId="1"
+                      stroke="hsl(142, 76%, 45%)"
+                      fill="url(#colorAllowed)"
+                      strokeWidth={2}
+                      name="Allowed"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="blocked"
+                      stackId="1"
+                      stroke="hsl(0, 84%, 60%)"
+                      fill="url(#colorBlockedArea)"
+                      strokeWidth={2}
+                      name="Blocked"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </Card>
         </div>
@@ -230,30 +303,49 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {topEndpoints.map((endpoint, index) => (
-                  <tr key={endpoint.endpoint} className="table-row">
-                    <td className="py-3 px-4">
-                      <code className="text-sm font-mono text-primary">{endpoint.endpoint}</code>
-                    </td>
-                    <td className="text-right py-3 px-4 text-sm text-foreground font-medium">
-                      {endpoint.requests.toLocaleString()}
-                    </td>
-                    <td className="text-right py-3 px-4 text-sm text-danger font-medium">
-                      {endpoint.blocked.toLocaleString()}
-                    </td>
-                    <td className="text-right py-3 px-4 text-sm text-muted-foreground">
-                      {endpoint.percentage}%
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full transition-all duration-500"
-                          style={{ width: `${endpoint.percentage}%`, animationDelay: `${index * 100}ms` }}
-                        />
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="p-6">
+                      <Skeleton className="h-6 w-1/3 mb-4" />
+                      <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-red-500">{error}</td>
+                  </tr>
+                ) : topEndpoints.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">No endpoints yet</td>
+                  </tr>
+                ) : (
+                  topEndpoints.map((endpoint, index) => {
+                    return (
+                      <tr key={endpoint.endpoint} className="table-row">
+                        <td className="py-3 px-4">
+                          <code className="text-sm font-mono text-primary">{endpoint.endpoint}</code>
+                        </td>
+                        <td className="text-right py-3 px-4 text-sm text-foreground font-medium">
+                          {endpoint.requests.toLocaleString()}
+                        </td>
+                        <td className="text-right py-3 px-4 text-sm text-danger font-medium">
+                          {endpoint.blocked.toLocaleString()}
+                        </td>
+                        <td className="text-right py-3 px-4 text-sm text-muted-foreground">
+                          {endpoint.percentage}%
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-primary rounded-full transition-all duration-500"
+                              style={{ width: `${endpoint.percentage}%`, animationDelay: `${index * 100}ms` }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

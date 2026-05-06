@@ -1,4 +1,4 @@
-const DEFAULT_RATEGUARD_URL = process.env.RATEGUARD_URL || "https://api.rateguard.io";
+const DEFAULT_RATEGUARD_URL = process.env.RATEGUARD_URL || "https://rateguard-backend-7b9988e4d5f5.herokuapp.com";
 
 export interface RateGuardInitConfig {
   apiKey: string;

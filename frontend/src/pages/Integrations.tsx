@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Integration {
   id: string;
@@ -169,13 +170,31 @@ const { allowed, remaining } = await response.json();`,
 export default function IntegrationsPage() {
   const navigate = useNavigate();
   const [apiKeyUsage, setApiKeyUsage] = useState<Array<{ key: string; requests: number; blocked: number; blockRate: number }>>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api("/analytics/apikeys?limit=5")
-      .then((response) => setApiKeyUsage(response.apiKeys || []))
-      .catch((err) => {
+    let cancelled = false;
+    const fetchKeys = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await api("/analytics/apikeys?limit=5");
+        if (cancelled) return;
+        setApiKeyUsage(response.apiKeys || []);
+      } catch (err) {
         console.error("Failed to load API key usage", err);
-      });
+        setError("Failed to load API key usage");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchKeys();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleIntegrationClick = (integration: Integration) => {
@@ -235,7 +254,16 @@ export default function IntegrationsPage() {
             <CardDescription>Most active API keys from the Redis counters</CardDescription>
           </CardHeader>
           <div className="space-y-3 px-4 pb-4">
-            {apiKeyUsage.length > 0 ? (
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-1/4" />
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : error ? (
+              <div className="text-center text-red-500">{error}</div>
+            ) : apiKeyUsage.length > 0 ? (
               apiKeyUsage.map((item) => (
                 <div key={item.key} className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-3">
                   <div>

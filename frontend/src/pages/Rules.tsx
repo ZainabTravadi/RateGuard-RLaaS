@@ -14,6 +14,7 @@ import {
 import { Info, Plus, Shield, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getApiBaseUrl } from "@/lib/apiBase";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const API_BASE = getApiBaseUrl();
 
@@ -46,6 +47,8 @@ const scopeOptions = [
 export default function RulesPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [newRule, setNewRule] = useState({
@@ -126,6 +129,7 @@ if (!environmentId) {
   // =============================
   const toggleRule = async (id: string) => {
   let nextEnabled: boolean;
+  setProcessingId(id);
 
   setRules(prev =>
     prev.map(r => {
@@ -149,6 +153,8 @@ if (!environmentId) {
         r.id === id ? { ...r, enabled: !nextEnabled } : r
       )
     );
+  } finally {
+    setProcessingId(null);
   }
 };
 
@@ -191,8 +197,10 @@ if (!environmentId) {
   // CREATE
   // =============================
   const createRule = async () => {
+    setCreateLoading(true);
     if (newRule.scope === "endpoint" && !newRule.endpoint.trim()) {
   alert("Endpoint is required for endpoint-scoped rules");
+    setCreateLoading(false);
   return;
 }
 
@@ -238,6 +246,7 @@ if (!environmentId) {
     ]);
 
     setShowCreateModal(false);
+    setCreateLoading(false);
     setNewRule({
       name: "",
       description: "",
@@ -288,7 +297,28 @@ if (!environmentId) {
   };
 
   if (loading) {
-    return <p className="text-muted-foreground">Loading rules…</p>;
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Rules & Policies</h1>
+            <p className="text-muted-foreground mt-1">Configure rate limiting rules for your applications</p>
+          </div>
+          <div>
+            <Skeleton className="h-9 w-32" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="p-4 rounded-lg border border-border">
+              <Skeleton className="h-6 w-1/3 mb-3" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
    return (
       
@@ -362,14 +392,16 @@ if (!environmentId) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Switch
-                    checked={rule.enabled}
-                    onCheckedChange={() => toggleRule(rule.id)}
-                  />
+                        <Switch
+                          checked={rule.enabled}
+                          onCheckedChange={() => toggleRule(rule.id)}
+                          disabled={processingId === rule.id}
+                        />
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteRule(rule.id)}
+                          onClick={() => deleteRule(rule.id)}
+                          disabled={processingId === rule.id}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -597,7 +629,9 @@ if (!environmentId) {
                 >
                   Cancel
                 </Button>
-                <Button onClick={createRule}>Create Rule</Button>
+                <Button onClick={createRule} disabled={createLoading}>
+                  {createLoading ? "Creating…" : "Create Rule"}
+                </Button>
               </div>
             </Card>
           </div>

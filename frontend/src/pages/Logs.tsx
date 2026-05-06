@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/apiBase";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AnalyticsSummary, normalizeOverviewAnalytics } from "@/lib/analytics";
 
 interface LogEntry {
   id: string;
@@ -26,21 +28,11 @@ interface LogEntry {
   ip: string;
   userId: string | null;
   endpoint: string;
+  allowed: boolean;
+  statusCode: number;
   status: "allowed" | "blocked";
   rule: string;
   responseTime: number;
-}
-
-interface AnalyticsSummary {
-  totalRequests: number;
-  blockedRequests: number;
-  blockRate: number;
-  topEndpoints: Array<{
-    key: string;
-    requests: number;
-    blocked: number;
-    blockRate: number;
-  }>;
 }
 
 export default function LogsPage() {
@@ -50,6 +42,7 @@ export default function LogsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   /* ---------------- FETCH LOGS ---------------- */
@@ -64,12 +57,20 @@ export default function LogsPage() {
           searchQuery
         )}&status=${statusFilter}&page=${currentPage}`
       ),
-      api("/analytics/overview")
+      api("/analytics/overview?range=30d")
     ])
       .then(([data, analytics]) => {
         if (!cancelled) {
-          setLogs(data);
-          setSummary(analytics);
+          setLogs(Array.isArray(data) ? data : []);
+          console.log("FRONTEND ANALYTICS", analytics);
+          setSummary(normalizeOverviewAnalytics(analytics));
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("Failed to load logs:", err);
+          setError("Failed to load logs. Please try again.");
         }
       })
       .finally(() => {
@@ -162,19 +163,23 @@ export default function LogsPage() {
           </Button>
         </div>
 
-        {summary && (
+        {error && !loading && (
+          <div className="p-4 text-center text-red-500">{error}</div>
+        )}
+
+        {summary && !loading && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <div className="p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Requests</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{summary.totalRequests.toLocaleString()}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{(summary.totalRequests ?? 0).toLocaleString()}</p>
               </div>
             </Card>
             <Card>
               <div className="p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Blocked</p>
-                <p className="mt-2 text-2xl font-semibold text-danger">{summary.blockedRequests.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">{summary.blockRate}% block rate</p>
+                <p className="mt-2 text-2xl font-semibold text-danger">{(summary.blockedRequests ?? 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{summary.blockRate ?? 0}% block rate</p>
               </div>
             </Card>
             <Card>
@@ -230,37 +235,58 @@ export default function LogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="table-row">
-                    <td className="py-3 px-4">
-                      <span className="text-sm font-mono text-muted-foreground">{log.timestamp}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-mono text-foreground">{log.ip}</span>
-                        {log.userId && (
-                          <span className="text-xs text-muted-foreground">{log.userId}</span>
-                        )}
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="p-6">
+                      <div className="space-y-3">
+                        <Skeleton className="h-4 w-1/3" />
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Skeleton key={i} className="h-8 w-full" />
+                        ))}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <code className="text-sm font-mono text-primary">{log.endpoint}</code>
-                    </td>
-                    <td className="py-3 px-4">
-                      {getStatusBadge(log.status)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-muted-foreground">
-                        {log.rule === "-" ? (
-                          <span className="text-muted-foreground/50">—</span>
-                        ) : log.rule}
-                      </span>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <span className="text-sm text-foreground">{log.responseTime}ms</span>
-                    </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-red-500">{error}</td>
+                  </tr>
+                ) : logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-muted-foreground">No logs found</td>
+                  </tr>
+                ) : (
+                  logs.map((log) => (
+                    <tr key={log.id} className="table-row">
+                      <td className="py-3 px-4">
+                        <span className="text-sm font-mono text-muted-foreground">{log.timestamp}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-mono text-foreground">{log.ip}</span>
+                          {log.userId && (
+                            <span className="text-xs text-muted-foreground">{log.userId}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <code className="text-sm font-mono text-primary">{log.endpoint}</code>
+                      </td>
+                      <td className="py-3 px-4">
+                        {getStatusBadge(log.status)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-muted-foreground">
+                          {log.rule === "-" ? (
+                            <span className="text-muted-foreground/50">—</span>
+                          ) : log.rule}
+                        </span>
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        <span className="text-sm text-foreground">{log.responseTime}ms</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

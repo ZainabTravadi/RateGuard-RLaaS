@@ -3,10 +3,11 @@ import { CodeBlock } from "@/components/CodeBlock";
 import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { ChevronRight, Code2, BookOpen, Shield, Zap } from "lucide-react";
+import { ChevronRight, Code2, BookOpen, Shield, Zap, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function DocsPage() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   const handleCopy = async (code: string, index: number) => {
     try {
@@ -27,106 +28,142 @@ export default function DocsPage() {
     }
   };
 
-  const codeExamples = [
+  const steps = [
     {
-      title: "Install & Initialize",
-      description: "Pin version and initialize with API key only",
+      number: "1",
+      title: "Install the SDK",
+      code: "npm install @rateguard/node",
+      description: "Add the RateGuard SDK to your Node.js project"
+    },
+    {
+      number: "2",
+      title: "Configure Environment Variables",
+      code: `RATEGUARD_API_KEY=your_api_key_here
+RATEGUARD_BASE_URL=http://localhost:4000`,
+      description: "Create a .env file with your API key and backend URL"
+    },
+    {
+      number: "3",
+      title: "Create an API Key",
+      description: "In the RateGuard dashboard:\n1. Open your project\n2. Go to API keys or settings\n3. Create a new API key\n4. Copy into RATEGUARD_API_KEY\n5. Keep private, don't commit to source control"
+    },
+    {
+      number: "4",
+      title: "Add Express Integration",
       code: `import express from "express";
+import dotenv from "dotenv";
 import { RateGuard } from "@rateguard/node";
+
+dotenv.config();
+
+RateGuard.init({
+  apiKey: process.env.RATEGUARD_API_KEY,
+  baseUrl: process.env.RATEGUARD_BASE_URL
+});
 
 const app = express();
 
-// Initialize once at startup (no baseUrl needed)
-RateGuard.init({
-  apiKey: process.env.RATEGUARD_API_KEY,
-});`,
-      index: 0
-    },
-    {
-      title: "Protect any endpoint",
-      description: "Apply middleware selectively to the routes you choose",
-      code: `import { RateGuard } from "@rateguard/node";
+app.use(express.json());
 
-// Example: protect a POST action
-app.post(
-  "/api/your-endpoint",
-  RateGuard.middleware(),
-  async (req, res) => {
-    // Your business logic
-    res.json({ ok: true });
-  }
+app.use(
+  RateGuard.middleware({
+    identifier: (req) =>
+      req.headers["x-user-id"] || req.ip
+  })
 );
 
-// Example: protect a GET resource
-app.get(
-  "/api/resource",
-  RateGuard.middleware(),
-  async (req, res) => {
-    res.json({ data: [] });
-  }
-);`,
-      index: 1
-    },
-    {
-      title: "Test & Verify",
-      description: "Expect 200 for first N, then 429 with retryAfter",
-      code: `# curl examples
-# First request should succeed
-curl -X POST https://your-app.example.com/api/your-endpoint -H "Content-Type: application/json" -d '{"sample":"payload"}'
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok"
+  });
+});
 
-# Send multiple rapid requests to trigger the limit
-for i in {1..10}; do
-  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://your-app.example.com/api/your-endpoint -H "Content-Type: application/json" -d '{"sample":"payload"}';
-done
+app.get("/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "Protected route"
+  });
+});
 
-# Expect 429 with body including retryAfter once limit is exceeded`,
-      index: 2
+const PORT = 3000;
+
+app.listen(PORT, () => {
+  console.log(
+    \`Test app running on http://localhost:\${PORT}\`
+  );
+});`,
+      description: "Copy-paste ready Express app with RateGuard middleware"
     }
   ];
 
-  const sections = [
+  const archFlow = [
+    { name: "Your Express App", icon: "📱" },
+    { name: "RateGuard SDK Middleware", icon: "🔒" },
+    { name: "RateGuard Backend API", icon: "⚙️" },
+    { name: "Redis + Database", icon: "💾" },
+    { name: "Analytics + Logs", icon: "📊" },
+    { name: "Frontend Dashboard", icon: "📈" }
+  ];
+
+  const faqItems = [
     {
-      icon: BookOpen,
-      title: "Getting Started",
-      description: "Learn the basics of RateGuard and set up your first integration",
-      items: [
-        "Installation",
-        "Configuration",
-        "Authentication",
-        "Your first request"
+      question: "What is dashboard-controlled rate limiting?",
+      answer: "You define rate limits in the RateGuard dashboard instead of hardcoding them in application code. The SDK fetches rules dynamically and enforces them at runtime. Change limits instantly without redeploying."
+    },
+    {
+      question: "How do I identify who is being rate limited?",
+      answer: "The identifier function in the middleware determines who is being limited. By default, it uses the client's IP address. You can customize it to use user ID, API key, or any other identifier that makes sense for your app."
+    },
+    {
+      question: "What happens if the backend is unreachable?",
+      answer: "RateGuard uses fail-open behavior. If the backend is down, requests are allowed through by default. An error will be logged so you know there's a connectivity issue. Your application continues to serve requests."
+    },
+    {
+      question: "Can I test rate limiting locally?",
+      answer: "Yes! Use http://localhost:4000 for RATEGUARD_BASE_URL during local development. In production, use your deployed backend URL. Both environments can have different API keys."
+    },
+    {
+      question: "Why aren't my rules applying?",
+      answer: "Check that: (1) the rule is enabled in the dashboard, (2) the endpoint path/method matches exactly, (3) the middleware is applied before your route handler, (4) the identifier matches your intended scope."
+    }
+  ];
+
+  const troubleshooting = [
+    {
+      title: "Invalid API Key",
+      symptom: "App starts but requests aren't authenticated against RateGuard or SDK reports auth error",
+      fixes: [
+        "Verify RATEGUARD_API_KEY is set in environment",
+        "Confirm key was copied from correct dashboard project/environment",
+        "Restart app after changing .env"
       ]
     },
     {
-      icon: Code2,
-      title: "API Reference",
-      description: "Complete API documentation for RateGuard SDK and REST API",
-      items: [
-        "RateGuard.init()",
-        "RateGuard.middleware()",
-        "RateGuard.checkLimit()",
-        "Response formats"
+      title: "Backend Unreachable",
+      symptom: "SDK cannot contact the RateGuard backend",
+      fixes: [
+        "Check RATEGUARD_BASE_URL",
+        "Confirm backend is running and reachable from your app",
+        "Verify local dev URLs differ from production URLs"
       ]
     },
     {
-      icon: Shield,
-      title: "Rate Limiting Rules",
-      description: "Understand and configure rate limiting rules for your needs",
-      items: [
-        "Rule creation",
-        "Threshold limits",
-        "Time windows",
-        "Advanced filtering"
+      title: "Rules Not Applying",
+      symptom: "Requests keep passing even though a dashboard rule exists",
+      fixes: [
+        "Make sure the rule is enabled in dashboard",
+        "Verify rule targets correct endpoint, method, or scope",
+        "Confirm route is actually protected by middleware",
+        "Check that identifier matches the scope you intended"
       ]
     },
     {
-      icon: Zap,
-      title: "Best Practices",
-      description: "Production-grade patterns for robust rate limiting",
-      items: [
-        "Error handling",
-        "Monitoring & alerts",
-        "Performance optimization",
-        "Security considerations"
+      title: "Blocked Requests Not Visible",
+      symptom: "Clients receive 429, but no blocked events in dashboard",
+      fixes: [
+        "Verify app uses correct project API key",
+        "Confirm backend URL points to same environment as dashboard",
+        "Wait a moment and refresh dashboard analytics or logs"
       ]
     }
   ];
@@ -139,10 +176,10 @@ done
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="max-w-3xl">
             <h1 className="text-5xl font-bold text-foreground mb-4">
-              Documentation
+              Getting Started with RateGuard
             </h1>
             <p className="text-xl text-muted-foreground">
-              Complete guide to implementing RateGuard in your application. From basic setup to advanced configurations.
+              Complete setup guide for integrating RateGuard into your Node.js application. From installation to production deployment.
             </p>
           </div>
         </div>
@@ -150,242 +187,266 @@ done
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-16">
-        {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
-          {sections.map((section, idx) => {
-            const Icon = section.icon;
-            return (
-              <Card key={idx} className="card-glow hover:border-primary/50 transition-all cursor-pointer">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 mb-4">
-                  <Icon className="h-6 w-6 text-primary" />
+        
+        {/* Architecture Overview */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-foreground mb-4">Architecture Overview</h2>
+          <p className="text-muted-foreground mb-8">
+            RateGuard follows a simple flow: Dashboard defines rules, SDK fetches them dynamically, middleware enforces automatically, analytics update in real-time.
+          </p>
+          
+          <Card className="card-glow p-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+              {archFlow.map((item, idx) => (
+                <div key={idx} className="flex flex-col items-center">
+                  <div className="text-4xl mb-2">{item.icon}</div>
+                  <p className="text-sm font-medium text-foreground">{item.name}</p>
+                  {idx < archFlow.length - 1 && (
+                    <div className="hidden md:block text-2xl text-muted-foreground mt-4">↓</div>
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {section.title}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {section.description}
-                </p>
-                <div className="space-y-1">
-                  {section.items.map((item, itemIdx) => (
-                    <div key={itemIdx} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      <ChevronRight className="h-3 w-3" />
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            );
-          })}
+              ))}
+            </div>
+            <div className="mt-8 p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Key principle:</strong> Developers do NOT hardcode rate limits. Rules live in the dashboard, and the SDK applies them dynamically without requiring app redeployment.
+              </p>
+            </div>
+          </Card>
         </div>
 
-        {/* Code Examples */}
+        {/* Step-by-Step Setup */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-foreground mb-4">Code Examples</h2>
-          <p className="text-muted-foreground mb-8">
-            Common integration patterns and usage examples
-          </p>
+          <h2 className="text-3xl font-bold text-foreground mb-8">Step-by-Step Setup</h2>
 
-          <div className="grid grid-cols-1 gap-6">
-            {codeExamples.map((example) => (
-              <Card key={example.index} className="card-glow">
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {example.title}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {example.description}
-                </p>
-                <CodeBlock
-                  code={example.code}
-                  language={example.index === 2 ? "bash" : "typescript"}
-                  onCopy={() => handleCopy(example.code, example.index)}
-                  copied={copiedIndex === example.index}
-                />
+          <div className="space-y-6">
+            {steps.map((step, idx) => (
+              <Card key={idx} className="card-glow">
+                <div className="flex gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-primary/10 border border-primary/20">
+                      <span className="text-lg font-bold text-primary">{step.number}</span>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground mb-3">{step.title}</h3>
+                    <p className="text-muted-foreground mb-4 whitespace-pre-wrap">{step.description}</p>
+                    {step.code && (
+                      <CodeBlock
+                        code={step.code}
+                        language={step.number === "1" || step.number === "2" ? "bash" : "typescript"}
+                        onCopy={() => handleCopy(step.code, parseInt(step.number))}
+                        copied={copiedIndex === parseInt(step.number)}
+                      />
+                    )}
+                  </div>
+                </div>
               </Card>
             ))}
           </div>
         </div>
 
-        {/* Protect Any API Endpoint Guide */}
+        {/* Key Information Sections */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-foreground mb-4">Protect Any API Endpoint</h2>
-          <p className="text-muted-foreground mb-8">
-            Apply RateGuard to any route in your application. Choose which endpoints to protect and configure different limits per endpoint in the dashboard.
-          </p>
-
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="card-glow">
-              <h3 className="text-lg font-semibold text-foreground mb-2">Setup Overview</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Dashboard: Use your RateGuard workspace to manage API keys and rules</li>
-                <li>SDK Package: <span className="font-mono">@rateguard/node@0.1.2</span></li>
-                <li>Endpoints to Protect (examples only): <span className="font-mono">/api/your-endpoint</span>, <span className="font-mono">/api/resource</span>, <span className="font-mono">/api/action</span></li>
-                <li>Pattern: Install SDK → initialize once → apply middleware per route you choose</li>
-                <li>Limits: Configure different thresholds per endpoint/method in the dashboard</li>
-              </ul>
-            </Card>
-
-            <Card className="card-glow">
-              <h3 className="text-lg font-semibold text-foreground mb-2">What To Do</h3>
-              <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Code2 className="h-5 w-5 text-primary" />
+                Environment Variables
+              </h3>
+              <div className="space-y-4 text-sm">
                 <div>
-                  <h4 className="font-medium text-foreground">1) Install the SDK</h4>
-                  <CodeBlock
-                    code="npm install @rateguard/node@0.1.2"
-                    language="bash"
-                    className="mt-2"
-                  />
+                  <p className="font-mono text-primary mb-1">RATEGUARD_API_KEY</p>
+                  <p className="text-muted-foreground">Created in dashboard. Identifies your project and authenticates SDK requests.</p>
                 </div>
                 <div>
-                  <h4 className="font-medium text-foreground">2) Initialize in your main app file</h4>
-                  <CodeBlock
-                    code={`import { RateGuard } from '@rateguard/node';
-
-RateGuard.init({
-  apiKey: process.env.RATEGUARD_API_KEY,
-});`}
-                    language="typescript"
-                    className="mt-2"
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">Store the API key in environment variables. No baseUrl needed.</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-foreground">3) Apply middleware to the endpoint</h4>
-                  <CodeBlock
-                    code={`app.post('/api/your-endpoint',
-  RateGuard.middleware(),
-  async (req, res) => {
-    // Example route only—use your own endpoints
-    res.json({ ok: true });
-  }
-);`}
-                    language="typescript"
-                    className="mt-2"
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">Apply to any route you want protected. Use separate dashboard rules for different endpoints and methods.</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-foreground">4) Test the integration</h4>
-                  <ul className="space-y-2 text-sm text-muted-foreground mt-2">
-                    <li>200/201: Request allowed (within limit)</li>
-                    <li>429: Rate limit exceeded (includes <span className="font-mono">retryAfter</span>)</li>
-                    <li>Dashboards: Verify requests and blocks in Analytics/Logs</li>
-                  </ul>
+                  <p className="font-mono text-primary mb-1">RATEGUARD_BASE_URL</p>
+                  <p className="text-muted-foreground">Local: http://localhost:4000 | Production: your deployed backend URL</p>
                 </div>
               </div>
             </Card>
 
             <Card className="card-glow">
-              <h3 className="text-lg font-semibold text-foreground mb-2">Testing Checklist</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" />
+                Why This Order Matters
+              </h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>✓ SDK installed and builds without errors</li>
-                <li>✓ RateGuard.init() called with correct API key</li>
-                <li>✓ Middleware applied to the routes you chose (e.g., <span className="font-mono">/api/your-endpoint</span>)</li>
-                <li>✓ First N requests return 200, N+1 returns 429 with retryAfter</li>
-                <li>✓ Dashboard shows request logs and blocks</li>
-                <li>✓ Limit resets after window</li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <span><strong>dotenv.config()</strong> loads env before SDK init</span>
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <span><strong>RateGuard.init()</strong> runs once at startup</span>
+                </li>
+                <li className="flex gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <span><strong>Middleware</strong> protects every request</span>
+                </li>
               </ul>
             </Card>
 
             <Card className="card-glow">
-              <h3 className="text-lg font-semibold text-foreground mb-2">Troubleshooting</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><span className="text-foreground font-medium">Not rate-limiting:</span> Check exact endpoint path/method in your rule, and middleware order (before handler).</li>
-                <li><span className="text-foreground font-medium">API key required:</span> Ensure <span className="font-mono">RATEGUARD_API_KEY</span> is set, valid (<span className="font-mono">rg_live_</span>/<span className="font-mono">rg_test_</span>), and not revoked.</li>
-                <li><span className="text-foreground font-medium">Global limiting:</span> Remove any global <span className="font-mono">app.use(RateGuard.middleware())</span>; apply only to routes you intend to protect.</li>
-              </ul>
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-primary" />
+                Creating Dashboard Rules
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Rules are NOT in code. They live in the dashboard and apply dynamically.
+              </p>
+              <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+                <li>Open RateGuard dashboard</li>
+                <li>Navigate to Rules page</li>
+                <li>Click Create Rule</li>
+                <li>Set limit (e.g., 10 requests/minute)</li>
+                <li>Set endpoint and scope</li>
+                <li>Enable rule</li>
+              </ol>
+            </Card>
+
+            <Card className="card-glow">
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                Testing Rate Limiting
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Send repeated requests to test enforcement:
+              </p>
+              <CodeBlock
+                code={`for i in {1..20}; do
+  curl http://localhost:3000/test
+done`}
+                language="bash"
+                onCopy={() => handleCopy(`for i in {1..20}; do\n  curl http://localhost:3000/test\ndone`, 99)}
+                copied={copiedIndex === 99}
+                className="text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Expected: First 10 → 200, remaining → 429
+              </p>
             </Card>
           </div>
         </div>
 
-        {/* Key Concepts */}
+        {/* Response Format */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-foreground mb-8">Key Concepts</h2>
+          <h2 className="text-3xl font-bold text-foreground mb-4">Expected Response Format</h2>
+          <p className="text-muted-foreground mb-6">
+            When a rate limit is exceeded, the SDK returns 429 with metadata to help clients understand when to retry.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="card-glow">
-              <h3 className="text-xl font-semibold text-foreground mb-3">Rate Limiting</h3>
-              <p className="text-muted-foreground mb-4">
-                Rate limiting restricts the number of requests a client can make within a specified time window. RateGuard provides flexible configuration to match any use case.
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Per-IP, per-user, or custom identifier</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Configurable time windows</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Multiple endpoints with different limits</span>
-                </li>
-              </ul>
+              <h3 className="text-lg font-semibold text-foreground mb-4">Response Headers</h3>
+              <CodeBlock
+                code={`X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 0
+Retry-After: 42`}
+                language="text"
+                onCopy={() => handleCopy(`X-RateLimit-Limit: 10\nX-RateLimit-Remaining: 0\nRetry-After: 42`, 100)}
+                copied={copiedIndex === 100}
+              />
             </Card>
 
             <Card className="card-glow">
-              <h3 className="text-xl font-semibold text-foreground mb-3">Identifiers</h3>
-              <p className="text-muted-foreground mb-4">
-                RateGuard uses identifiers to track individual clients. Choose the identifier that best matches your use case.
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>IP Address (default)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>User ID</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>API Key</span>
-                </li>
-              </ul>
-            </Card>
-
-            <Card className="card-glow">
-              <h3 className="text-xl font-semibold text-foreground mb-3">Time Windows</h3>
-              <p className="text-muted-foreground mb-4">
-                Define the period over which rate limits are enforced. Windows can be seconds, minutes, hours, or days.
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Sliding window counters</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Automatic reset</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Sub-second precision</span>
-                </li>
-              </ul>
-            </Card>
-
-            <Card className="card-glow">
-              <h3 className="text-xl font-semibold text-foreground mb-3">Responses</h3>
-              <p className="text-muted-foreground mb-4">
-                RateGuard returns standard HTTP status codes and headers for rate limit responses.
-              </p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>429 Too Many Requests</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>Retry-After header</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>X-RateLimit-* headers</span>
-                </li>
-              </ul>
+              <h3 className="text-lg font-semibold text-foreground mb-4">Response Body (429)</h3>
+              <CodeBlock
+                code={`{
+  "error": "Rate limit exceeded",
+  "retryAfter": 42
+}`}
+                language="json"
+                onCopy={() => handleCopy(`{\n  "error": "Rate limit exceeded",\n  "retryAfter": 42\n}`, 101)}
+                copied={copiedIndex === 101}
+              />
             </Card>
           </div>
+        </div>
+
+        {/* Dashboard Metrics */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-foreground mb-4">Dashboard Metrics</h2>
+          <p className="text-muted-foreground mb-6">
+            Once traffic flows through your app, the dashboard displays:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              "Total Requests",
+              "Blocked Requests",
+              "Request Logs",
+              "Traffic Analytics",
+              "Block Rate %",
+              "Peak Hours"
+            ].map((metric, idx) => (
+              <Card key={idx} className="card-glow">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                  <span className="font-medium text-foreground">{metric}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="card-glow mt-6 bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              Use these metrics to verify that rules are firing, traffic patterns are visible, and blocked requests are being recorded as expected.
+            </p>
+          </Card>
+        </div>
+
+        {/* Troubleshooting */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-foreground mb-8">Troubleshooting</h2>
+
+          <div className="space-y-6">
+            {troubleshooting.map((item, idx) => (
+              <Card key={idx} className="card-glow border-l-4 border-l-primary/30">
+                <div className="flex gap-4">
+                  <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-1" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      <strong>Symptom:</strong> {item.symptom}
+                    </p>
+                    <p className="text-sm font-medium text-foreground mb-2">Fixes:</p>
+                    <ul className="space-y-1">
+                      {item.fixes.map((fix, fixIdx) => (
+                        <li key={fixIdx} className="text-sm text-muted-foreground flex gap-2">
+                          <span className="text-primary">→</span>
+                          {fix}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Production Checklist */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-foreground mb-4">Production Checklist</h2>
+          
+          <Card className="card-glow">
+            <ul className="space-y-3">
+              {[
+                "Set RATEGUARD_API_KEY and RATEGUARD_BASE_URL in runtime environment",
+                "Keep rate limits in dashboard, not in app code",
+                "Initialize SDK once at process startup",
+                "Apply RateGuard.middleware() before protected routes",
+                "Test /test route with repeated requests, verify 429 responses",
+                "Review dashboard logs and analytics after rollout"
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                  <span className="text-foreground">{item}</span>
+                </div>
+              ))}
+            </ul>
+          </Card>
         </div>
 
         {/* FAQ Section */}
@@ -393,48 +454,42 @@ RateGuard.init({
           <h2 className="text-3xl font-bold text-foreground mb-8">Frequently Asked Questions</h2>
 
           <div className="space-y-4">
-            <Card className="card-glow">
-              <h4 className="font-semibold text-foreground mb-2">How is RateGuard different from other rate limiting solutions?</h4>
-              <p className="text-muted-foreground">
-                RateGuard is purpose-built for modern APIs with blazing-fast response times, flexible configuration, and a developer-friendly dashboard. No complex setup required.
-              </p>
-            </Card>
-
-            <Card className="card-glow">
-              <h4 className="font-semibold text-foreground mb-2">Does RateGuard work with all frameworks?</h4>
-              <p className="text-muted-foreground">
-                Yes! RateGuard provides SDKs for Node.js (Express, Fastify, Koa), Python (Django, Flask, FastAPI), Java (Spring Boot), and more. We also offer a REST API for custom implementations.
-              </p>
-            </Card>
-
-            <Card className="card-glow">
-              <h4 className="font-semibold text-foreground mb-2">What happens if RateGuard is unavailable?</h4>
-              <p className="text-muted-foreground">
-                RateGuard uses fail-open behavior. If the service is unreachable, requests are allowed through while the SDK logs the error. Your application continues to serve requests.
-              </p>
-            </Card>
-
-            <Card className="card-glow">
-              <h4 className="font-semibold text-foreground mb-2">Can I test rate limiting locally?</h4>
-              <p className="text-muted-foreground">
-                Absolutely! For local development, you can point the RateGuard backend via <span className="font-mono">RATEGUARD_URL</span>. In production, the SDK uses the hosted RateGuard service by default.
-              </p>
-            </Card>
+            {faqItems.map((item, idx) => (
+              <Card
+                key={idx}
+                className="card-glow cursor-pointer transition-all"
+                onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <h4 className="font-semibold text-foreground">{item.question}</h4>
+                  <ChevronRight
+                    className={`h-5 w-5 text-muted-foreground flex-shrink-0 transition-transform ${
+                      expandedFaq === idx ? "rotate-90" : ""
+                    }`}
+                  />
+                </div>
+                {expandedFaq === idx && (
+                  <p className="text-muted-foreground mt-4 pt-4 border-t border-border">
+                    {item.answer}
+                  </p>
+                )}
+              </Card>
+            ))}
           </div>
         </div>
 
-        {/* Call to Action */}
+        {/* Summary */}
         <Card className="card-glow border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-6">
             <div>
-              <h3 className="text-2xl font-bold text-foreground mb-2">Ready to implement RateGuard?</h3>
+              <h3 className="text-2xl font-bold text-foreground mb-2">Ready to Deploy?</h3>
               <p className="text-muted-foreground">
-                Follow the integration guides to add rate limiting to your application.
+                Your app initializes the SDK once. The dashboard defines rules. Middleware enforces automatically. Changes take effect instantly without redeploying.
               </p>
             </div>
-            <Link to="/app/integrations">
-              <Button className="bg-primary hover:bg-primary/90">
-                View Integrations
+            <Link to="/app/rules">
+              <Button className="bg-primary hover:bg-primary/90 whitespace-nowrap">
+                Create a Rule
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

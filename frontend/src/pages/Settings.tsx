@@ -11,6 +11,7 @@ import {
   Globe,
 } from "lucide-react";
 import api from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /* ===================== TYPES ===================== */
 
@@ -41,6 +42,11 @@ export default function SettingsPage() {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null);
 
+  const [loading, setLoading] = useState<boolean>(true);
+  const [generateLoading, setGenerateLoading] = useState<boolean>(false);
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [editingEnv, setEditingEnv] = useState<Environment | null>(null);
 
@@ -56,19 +62,25 @@ export default function SettingsPage() {
 
   const fetchApiKeys = async () => {
     try {
+      setLoading(true);
       const data = await api("/api-keys");
-      setApiKeys(data);
+      setApiKeys(data || []);
     } catch (err) {
       console.error("Failed to fetch API keys:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchEnvironments = async () => {
     try {
+      setLoading(true);
       const data = await api("/environments");
-      setEnvironments(data);
+      setEnvironments(data || []);
     } catch (err) {
       console.error("Failed to fetch environments:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,39 +100,63 @@ export default function SettingsPage() {
   };
 
   const generateKey = async () => {
-    const res = await api("/api-keys", {
-      method: "POST",
-      body: JSON.stringify({ name: "New API Key", environment: "production" }),
-    });
+    try {
+      setGenerateLoading(true);
+      const res = await api("/api-keys", {
+        method: "POST",
+        body: JSON.stringify({ name: "New API Key", environment: "production" }),
+      });
 
-    setApiKeys(prev => [
-      {
-        ...res.meta,
-        keyPrefix: res.apiKey.slice(0, 8),
-        fullKey: res.apiKey,
-      },
-      ...prev,
-    ]);
-    setLastGeneratedId(res.meta?.id || null);
+      setApiKeys(prev => [
+        {
+          ...res.meta,
+          keyPrefix: res.apiKey.slice(0, 8),
+          fullKey: res.apiKey,
+        },
+        ...prev,
+      ]);
+      setLastGeneratedId(res.meta?.id || null);
+    } catch (err) {
+      console.error("Failed to generate key:", err);
+      alert("Failed to generate API key");
+    } finally {
+      setGenerateLoading(false);
+    }
   };
 
   const rotateKey = async (id: string) => {
-    const res = await api(`/api-keys/${id}/rotate`, { method: "POST" });
+    try {
+      setRotatingId(id);
+      const res = await api(`/api-keys/${id}/rotate`, { method: "POST" });
 
-    setApiKeys(prev =>
-      prev.map(k =>
-        k.id === id
-          ? { ...k, fullKey: res.apiKey, keyPrefix: res.apiKey.slice(0, 8) }
-          : k
-      )
-    );
+      setApiKeys(prev =>
+        prev.map(k =>
+          k.id === id
+            ? { ...k, fullKey: res.apiKey, keyPrefix: res.apiKey.slice(0, 8) }
+            : k
+        )
+      );
 
-    setVisibleKeys(prev => new Set(prev).add(id));
+      setVisibleKeys(prev => new Set(prev).add(id));
+    } catch (err) {
+      console.error("Failed to rotate key:", err);
+      alert("Failed to rotate API key");
+    } finally {
+      setRotatingId(null);
+    }
   };
 
   const deleteKey = async (id: string) => {
-    setApiKeys(prev => prev.filter(k => k.id !== id));
-    await api(`/api-keys/${id}`, { method: "DELETE" });
+    try {
+      setDeletingId(id);
+      setApiKeys(prev => prev.filter(k => k.id !== id));
+      await api(`/api-keys/${id}`, { method: "DELETE" });
+    } catch (err) {
+      console.error("Failed to delete key:", err);
+      alert("Failed to delete API key");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   /* ===================== RENDER ===================== */
@@ -134,7 +170,6 @@ export default function SettingsPage() {
           Manage API keys, environments, and account settings
         </p>
       </div>
-
       {/* API Keys */}
       <Card>
         <CardHeader>
@@ -150,20 +185,28 @@ export default function SettingsPage() {
                 </CardDescription>
               </div>
             </div>
-            <Button className="bg-primary hover:bg-primary/90" onClick={generateKey}>
+            <Button className="bg-primary hover:bg-primary/90" onClick={generateKey} disabled={generateLoading}>
               <Plus className="h-4 w-4 mr-2" />
-              Generate New Key
+              {generateLoading ? "Generating..." : "Generate New Key"}
             </Button>
           </div>
         </CardHeader>
 
         <div className="space-y-3">
-          {apiKeys.map((apiKey, index) => (
-            <div
-              key={apiKey.id}
-              className="p-4 rounded-lg border border-border bg-muted/30 animate-fade-in"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-1/4" />
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : apiKeys.length > 0 ? (
+            apiKeys.map((apiKey, index) => (
+              <div
+                key={apiKey.id}
+                className="p-4 rounded-lg border border-border bg-muted/30 animate-fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-foreground">
@@ -184,15 +227,17 @@ export default function SettingsPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => rotateKey(apiKey.id)}
+                    disabled={rotatingId === apiKey.id}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Rotate
+                    {rotatingId === apiKey.id ? "Rotating..." : "Rotate"}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => deleteKey(apiKey.id)}
+                    disabled={deletingId === apiKey.id}
                     className="text-muted-foreground hover:text-danger"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -237,7 +282,10 @@ export default function SettingsPage() {
                 </span>
               </div>
             </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground px-1">No API keys yet.</p>
+          )}
         </div>
       </Card>
 

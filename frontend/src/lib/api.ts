@@ -3,10 +3,10 @@ import { getApiBaseUrl } from "./apiBase";
 const API_BASE = getApiBaseUrl();
 
 // Debug log
+// Debug log only in development (no logs in production)
 if (import.meta.env.DEV) {
+  // eslint-disable-next-line no-console
   console.log("[RateGuard API] Using base URL:", API_BASE);
-} else {
-  console.log("[RateGuard API] API URL:", API_BASE);
 }
 
 export async function api(

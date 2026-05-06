@@ -3,6 +3,7 @@ import { Activity, Shield, Server, Ban, TrendingUp, Clock, AlertCircle, Zap } fr
 import { StatCard, StatusBadge, Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { api } from "@/lib/api";
+import { AnalyticsSummary, normalizeOverviewAnalytics } from "@/lib/analytics";
 
 interface OverviewData {
   stats: {
@@ -43,31 +44,6 @@ interface OverviewData {
   };
 }
 
-interface AnalyticsSummary {
-  totalRequests: number;
-  allowedRequests: number;
-  blockedRequests: number;
-  blockRate: number;
-  topEndpoints: Array<{
-    key: string;
-    requests: number;
-    blocked: number;
-    blockRate: number;
-  }>;
-  recentHours: Array<{
-    key: string;
-    requests: number;
-    blocked: number;
-    blockRate: number;
-  }>;
-  recentDays: Array<{
-    key: string;
-    requests: number;
-    blocked: number;
-    blockRate: number;
-  }>;
-}
-
 export default function OverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null);
@@ -81,7 +57,7 @@ export default function OverviewPage() {
         setError(null);
         const [overviewResponse, analyticsResponse] = await Promise.all([
           api("/overview"),
-          api("/analytics/overview")
+          api("/analytics/overview?range=30d")
         ]);
 
         if (overviewResponse.success) {
@@ -90,7 +66,8 @@ export default function OverviewPage() {
           setError(overviewResponse.message || "Failed to fetch data");
         }
 
-        setAnalyticsSummary(analyticsResponse);
+        console.log("FRONTEND ANALYTICS", analyticsResponse);
+        setAnalyticsSummary(normalizeOverviewAnalytics(analyticsResponse));
       } catch (err) {
         console.error("Error fetching overview data:", err);
         if (err instanceof Error) {
@@ -150,22 +127,22 @@ export default function OverviewPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
               title="Tracked Requests"
-              value={analyticsSummary.totalRequests.toLocaleString()}
+              value={(analyticsSummary.totalRequests ?? 0).toLocaleString()}
               change="Redis counters"
               changeType="neutral"
               icon={Activity}
             />
             <StatCard
               title="Tracked Blocks"
-              value={analyticsSummary.blockedRequests.toLocaleString()}
-              change={`${analyticsSummary.blockRate}% block rate`}
+              value={(analyticsSummary.blockedRequests ?? 0).toLocaleString()}
+              change={`${analyticsSummary.blockRate ?? 0}% block rate`}
               changeType="neutral"
               icon={Ban}
               iconColor="text-danger"
             />
             <StatCard
               title="Allowed Requests"
-              value={analyticsSummary.allowedRequests.toLocaleString()}
+              value={(analyticsSummary.allowedRequests ?? 0).toLocaleString()}
               change={`${analyticsSummary.topEndpoints[0]?.key || "No endpoints yet"}`}
               changeType="positive"
               icon={TrendingUp}
@@ -193,7 +170,7 @@ export default function OverviewPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Total Requests (24h)"
+            title="Total Requests (30d)"
             value={data.stats.totalRequests.toLocaleString()}
             change={`${data.stats.requestGrowth}% from yesterday`}
             changeType={parseFloat(data.stats.requestGrowth) >= 0 ? "positive" : "negative"}
