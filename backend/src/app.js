@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { env } from "./config/env.js";
 
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { rulesRoutes } from "./modules/rules/rules.routes.js";
@@ -12,6 +13,7 @@ import gatewayRoutes from "./modules/gateway/gateway.routes.js";
 import { overviewRoutes } from "./modules/overview/overview.routes.js";
 import { workspaceRoutes } from "./modules/workspaces/workspaces.routes.js";
 import { notificationRoutes } from "./modules/notifications/notifications.routes.js";
+import { debugRoutes } from "./modules/debug/debug.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 export const app = Fastify({ logger: true });
@@ -38,7 +40,16 @@ app.addHook("onSend", async (_request, reply, payload) => {
 });
 
 await app.register(cors, {
-  origin: true,
+  // In production restrict to the frontend deployed origin, otherwise allow all for local/dev
+  origin: (origin, cb) => {
+    // allow requests with no origin like curl/postman
+    if (!origin) return cb(null, true);
+    if (env.NODE_ENV === "production") {
+      const allowed = "https://rateguard-frontend.vercel.app";
+      return cb(null, origin === allowed);
+    }
+    return cb(null, true);
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Authorization",
@@ -63,3 +74,6 @@ await app.register(gatewayRoutes);
 
 /* ---------------- EXTERNAL API (API KEYS) ---------------- */
 await app.register(externalApiRoutes);
+
+/* ------------- DEBUG & TROUBLESHOOTING (Development) ------------- */
+await app.register(debugRoutes);

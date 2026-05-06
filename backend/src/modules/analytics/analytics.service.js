@@ -174,9 +174,13 @@ export async function recordRequestMetrics({ apiKeyId, identifier, endpoint, met
       if (apiKeyId) keys.push(`${API_KEY_PREFIX}${encodeMetricSegment(apiKeyId)}:violations`);
     }
 
+    const recordStart = Date.now();
     await incrementMetrics(redis, keys);
+    const recordDuration = Date.now() - recordStart;
+    
+    console.log(`[Redis Metrics] Recorded: allowed=${allowed}, keys=${keys.length}, durationMs=${recordDuration}, isMock=${redis.isMock}`);
   } catch (err) {
-    console.warn("analytics metrics write failed:", err?.message || err);
+    console.error("[Redis Metrics] FAILED to write metrics:", err?.message || err);
   }
 }
 
@@ -219,10 +223,46 @@ export async function getEndpointStats({ limit = 10 } = {}) {
   return rows.slice(0, limit);
 }
 
-export async function getApiKeyStats({ limit = 10 } = {}) {
-  const redis = await getRedis();
-  const rows = await readRankedCounters(redis, `${API_KEY_PREFIX}*:requests`, API_KEY_PREFIX, ["warnings", "violations"]);
-  return rows.slice(0, limit);
+export async function getApiKeyStats(userId, { limit = 10 } = {}) {
+  // Fetch API keys for the user, then read Redis counters for each key id
+  try {
+    const { rows: keys } = await db.query(
+      `SELECT id, name FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const redis = await getRedis();
+
+    const stats = await Promise.all(keys.map(async (k) => {
+      const keyId = String(k.id);
+      const requestsKey = `${API_KEY_PREFIX}${encodeMetricSegment(keyId)}:requests`;
+      const blockedKey = `${API_KEY_PREFIX}${encodeMetricSegment(keyId)}:blocked`;
+      const warningsKey = `${API_KEY_PREFIX}${encodeMetricSegment(keyId)}:warnings`;
+      const violationsKey = `${API_KEY_PREFIX}${encodeMetricSegment(keyId)}:violations`;
+
+      const [requests, blocked, warnings, violations] = await Promise.all([
+        readCounter(redis, requestsKey),
+        readCounter(redis, blockedKey),
+        readCounter(redis, warningsKey),
+        readCounter(redis, violationsKey)
+      ]);
+
+      return {
+        id: k.id,
+        name: k.name,
+        requests,
+        blocked,
+        warnings,
+        violations,
+        blockRate: requests > 0 ? Number(((blocked / requests) * 100).toFixed(2)) : 0
+      };
+    }));
+
+    return stats.slice(0, limit);
+  } catch (err) {
+    console.error('getApiKeyStats error:', err);
+    return [];
+  }
 }
 
 async function getMethodStats(redis) {
@@ -230,32 +270,44 @@ async function getMethodStats(redis) {
 }
 
 export async function getTimeSeriesAnalytics(userId, interval) {
+  // interval can be like '1h', '24h', '7d', '30d'
+  const range = interval || '30d';
+  const m = String(range).match(/^(\d+)([dh])$/);
+  let intervalSql = '30 days';
+  if (m) {
+    const num = Number(m[1]);
+    const unit = m[2];
+    intervalSql = unit === 'h' ? `${num} hours` : `${num} days`;
+  }
+
   const bucket =
-    interval === "1h" ? "minute" :
-    interval === "24h" ? "hour" :
-    interval === "7d" ? "day" :
-    "day";
+    range === "1h" ? "minute" :
+    range === "24h" ? "hour" :
+    range === "7d" ? "day" :
+    (m && m[2] === 'h' && Number(m[1]) <= 24) ? 'hour' : 'day';
 
   const { rows } = await db.query(
     `
     SELECT
-      date_trunc($2, created_at) AS time,
+      date_trunc('${bucket}', created_at) AS time,
       COUNT(*) AS rps,
       COUNT(*) FILTER (WHERE status_code != 429) AS allowed,
       COUNT(*) FILTER (WHERE status_code = 429) AS blocked
     FROM api_key_logs
     WHERE user_id = $1
-      AND created_at > NOW() - INTERVAL '30 days'
+      AND created_at > NOW() - INTERVAL '${intervalSql}'
     GROUP BY time
     ORDER BY time
     `,
-    [userId, bucket]
+    [userId]
   );
 
   return rows;
 }
 
-export async function getAllowedVsBlocked(userId) {
+export async function getAllowedVsBlocked(userId, range = '7d') {
+  const m = String(range).match(/^(\d+)([dh])$/);
+  const intervalSql = m ? (m[2] === 'h' ? `${m[1]} hours` : `${m[1]} days`) : '7 days';
   const { rows } = await db.query(
     `
     SELECT
@@ -264,7 +316,7 @@ export async function getAllowedVsBlocked(userId) {
       COUNT(*) FILTER (WHERE status_code = 429) AS blocked
     FROM api_key_logs
     WHERE user_id = $1
-      AND created_at > NOW() - INTERVAL '7 days'
+      AND created_at > NOW() - INTERVAL '${intervalSql}'
     GROUP BY name
     ORDER BY MIN(created_at)
     `,
@@ -274,7 +326,9 @@ export async function getAllowedVsBlocked(userId) {
   return rows;
 }
 
-export async function getTopEndpoints(userId) {
+export async function getTopEndpoints(userId, range = '30d', limit = 10) {
+  const m = String(range).match(/^(\d+)([dh])$/);
+  const intervalSql = m ? (m[2] === 'h' ? `${m[1]} hours` : `${m[1]} days`) : '30 days';
   const { rows } = await db.query(
     `
     SELECT
@@ -283,15 +337,17 @@ export async function getTopEndpoints(userId) {
       COUNT(*) FILTER (WHERE status_code = 429) AS blocked
     FROM api_key_logs
     WHERE user_id = $1
+      AND created_at > NOW() - INTERVAL '${intervalSql}'
     GROUP BY endpoint
     ORDER BY requests DESC
-    LIMIT 10
+    LIMIT $2
     `,
-    [userId]
+    [userId, limit]
   );
 
+  if (!rows.length) return [];
   return rows.map(r => ({
     ...r,
-    percentage: Math.round((r.requests / rows[0].requests) * 100)
+    percentage: rows[0] && rows[0].requests ? Math.round((r.requests / rows[0].requests) * 100) : 0
   }));
 }

@@ -192,6 +192,39 @@ function createMockRedis() {
   };
 }
 
+/**
+ * Health check for Redis connection and functionality
+ * @returns {Promise<{status: string, connected: boolean, isMock: boolean, timestamp: number}>}
+ */
+export async function getRedisHealth() {
+  try {
+    const redis = await getRedis();
+    const pong = await redis.ping();
+    const isMock = redis.isMock === true;
+    
+    const status = pong === "PONG" 
+      ? (isMock ? "healthy_mock" : "healthy")
+      : "degraded";
+    
+    logger.info({ status, isMock, pong }, "[Redis Health] Status check");
+    
+    return {
+      status,
+      connected: pong === "PONG",
+      isMock,
+      timestamp: Date.now(),
+    };
+  } catch (err) {
+    logger.error({ err: err?.message || err }, "[Redis Health] Check failed");
+    return {
+      status: "error",
+      connected: false,
+      error: err?.message,
+      timestamp: Date.now(),
+    };
+  }
+}
+
 export async function getRedis() {
   if (mockRedis) {
     return mockRedis;
@@ -207,11 +240,12 @@ export async function getRedis() {
 
   if (!env.REDIS_URL) {
     mockRedis = createMockRedis();
-    logger.warn("Redis URL not set, using in-memory mock Redis for development");
+    logger.warn("[Redis] No REDIS_URL set, using in-memory mock Redis for development");
     return mockRedis;
   }
 
-  redisClient = new Redis(env.REDIS_URL, {
+  // enable TLS for providers like Upstash when URL or hostname indicates TLS is required
+  const redisOptions = {
     lazyConnect: true,
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
@@ -224,39 +258,55 @@ export async function getRedis() {
 
       return Math.min(times * 50, 2000);
     },
-  });
+  };
+
+  try {
+    const url = new URL(env.REDIS_URL);
+    const hostname = url.hostname || '';
+    const protocol = url.protocol || '';
+
+    // Upstash and other managed Redis often require TLS; if URL indicates upstash or protocol is rediss, enable tls
+    if (protocol === 'rediss:' || hostname.includes('upstash') || env.REDIS_URL.startsWith('rediss://')) {
+      redisOptions.tls = {};
+    }
+  } catch (err) {
+    // ignore URL parse errors and proceed without TLS
+  }
+
+  redisClient = new Redis(env.REDIS_URL, redisOptions);
 
   redisClient.on("connect", () => {
-    logger.info("Redis socket connected");
+    logger.info("[Redis] Socket connected");
   });
 
   redisClient.on("ready", () => {
-    logger.info("Redis ready");
+    logger.info("[Redis] Ready and operational");
   });
 
   redisClient.on("reconnecting", (delay) => {
-    logger.warn({ delay }, "Redis reconnecting");
+    logger.warn({ delayMs: delay }, "[Redis] Reconnecting");
   });
 
   redisClient.on("error", (err) => {
-    logger.error({ err }, "Redis error");
+    logger.error({ err, code: err?.code }, "[Redis] Error event");
   });
 
   redisClient.on("end", () => {
-    logger.warn("Redis connection ended");
+    logger.warn("[Redis] Connection ended");
   });
 
   redisReadyPromise = redisClient
     .connect()
     .then(async () => {
-      await redisClient.ping();
+      const pong = await redisClient.ping();
+      logger.info({ ping: pong }, "[Redis] Initial ping successful");
       return redisClient;
     })
     .catch((err) => {
-      logger.error({ err }, "Redis initial connection failed");
+      logger.error({ err: err?.message, code: err?.code }, "[Redis] Initial connection failed");
 
       if (env.NODE_ENV !== "production") {
-        logger.warn("Falling back to in-memory mock Redis for development");
+        logger.warn("[Redis] Falling back to in-memory mock Redis for development");
         mockRedis = createMockRedis();
         redisClient = null;
         redisReadyPromise = null;

@@ -58,6 +58,10 @@ export async function enforcementRoutes(app) {
     });
 
     req.rateLimit = result;
+    req.analyticsRequest = {
+      endpoint,
+      method,
+    };
 
     app.log.info(
       {

@@ -9,6 +9,11 @@ import { evaluate as evaluateRateLimit } from "./rateLimit.service.js";
 export async function enforcementGuard(req, reply) {
   if (!req.apiKey) return;
 
+  const requestPath = req.url.split("?")[0];
+  if (requestPath === "/v1/check" || requestPath === "/v1/health") {
+    return;
+  }
+
   const { userId, environment } = req.apiKey;
 
   const environments = await getEnvironments(userId);
@@ -21,7 +26,7 @@ export async function enforcementGuard(req, reply) {
   const rules = await getRulesByUser(userId, env.id);
   if (!rules.length) return;
 
-  const endpoint = req.url.split("?")[0];
+  const endpoint = requestPath;
 
   const result = await evaluateRateLimit({
     rules,
@@ -49,6 +54,7 @@ export async function enforcementGuard(req, reply) {
   );
 
   if (!result.allowed) {
+    console.log(`[Enforcement Guard] BLOCKING request: ${req.method} ${req.url} from ${req.ip} (ruleId: ${result.ruleId})`);
     reply
       .code(429)
       .header("Retry-After", result.retryAfter)
@@ -58,5 +64,7 @@ export async function enforcementGuard(req, reply) {
         message: "Rate limit exceeded",
         ruleId: result.ruleId,
       });
+  } else {
+    console.log(`[Enforcement Guard] ALLOWED request: ${req.method} ${req.url} from ${req.ip}`);
   }
 }

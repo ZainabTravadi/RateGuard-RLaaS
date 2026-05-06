@@ -1,28 +1,39 @@
 import { db } from "../../db/index.js";
 
+function parseRange(range = '30d') {
+  if (typeof range !== 'string') range = '30d';
+  const m = range.match(/^(\d+)([dh])$/);
+  if (!m) return { intervalSql: '30 days', days: 30, granularity: 'day' };
+  const num = Number(m[1]);
+  const unit = m[2];
+  if (unit === 'h') return { intervalSql: `${num} hours`, days: Math.ceil(num / 24), granularity: num <= 24 ? 'hour' : 'day' };
+  return { intervalSql: `${num} days`, days: num, granularity: num <= 2 ? 'hour' : 'day' };
+}
+
 /**
  * Get comprehensive dashboard statistics
  */
-export async function getDashboardStats(userId) {
+export async function getDashboardStats(userId, range = '30d') {
   try {
+    const { intervalSql } = parseRange(range);
     const { rows } = await db.query(
       `
       SELECT
-        COUNT(*) AS total_requests_24h,
-        COUNT(*) FILTER (WHERE status_code = 429) AS blocked_requests_24h,
+        COUNT(*) AS total_requests,
+        COUNT(*) FILTER (WHERE status_code = 429) AS blocked_requests,
         COUNT(DISTINCT endpoint) AS unique_endpoints,
         COUNT(DISTINCT ip_address) AS unique_ips,
         COUNT(DISTINCT CASE WHEN rule_id IS NOT NULL THEN rule_id END) AS triggered_rules
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '24 hours'
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
       `,
       [userId]
     );
 
     return rows[0] || {
-      total_requests_24h: 0,
-      blocked_requests_24h: 0,
+      total_requests: 0,
+      blocked_requests: 0,
       unique_endpoints: 0,
       unique_ips: 0,
       triggered_rules: 0
@@ -36,25 +47,26 @@ export async function getDashboardStats(userId) {
 /**
  * Get 7-day comparison for trend
  */
-export async function getSevenDayComparison(userId) {
+export async function getSevenDayComparison(userId, range = '30d') {
   try {
+    const { intervalSql } = parseRange(range);
     const { rows } = await db.query(
       `
       SELECT
-        COUNT(*) AS requests_7d,
-        COUNT(*) FILTER (WHERE status_code = 429) AS blocked_7d,
+        COUNT(*) AS requests_range,
+        COUNT(*) FILTER (WHERE status_code = 429) AS blocked_range,
         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') AS requests_1d,
         COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day' AND status_code = 429) AS blocked_1d
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '7 days'
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
       `,
       [userId]
     );
 
     return rows[0] || {
-      requests_7d: 0,
-      blocked_7d: 0,
+      requests_range: 0,
+      blocked_range: 0,
       requests_1d: 0,
       blocked_1d: 0
     };
@@ -109,8 +121,9 @@ export async function getProtectedServicesCount(userId) {
 /**
  * Get top endpoints by traffic
  */
-export async function getTopEndpoints(userId) {
+export async function getTopEndpoints(userId, range = '30d', limit = 5) {
   try {
+    const { intervalSql } = parseRange(range);
     const { rows } = await db.query(
       `
       SELECT
@@ -120,12 +133,12 @@ export async function getTopEndpoints(userId) {
         ROUND((COUNT(*) FILTER (WHERE status_code = 429)::NUMERIC / COUNT(*)) * 100, 2) AS block_rate
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '24 hours'
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
       GROUP BY endpoint
       ORDER BY total_requests DESC
-      LIMIT 5
+      LIMIT $2
       `,
-      [userId]
+      [userId, limit]
     );
 
     return rows || [];
@@ -173,7 +186,7 @@ export async function getPeakLoadTime(userId) {
 /**
  * Get most triggered rule
  */
-export async function getMostTriggeredRule(userId) {
+export async function getMostTriggeredRule(userId, range = '30d') {
   try {
     const { rows } = await db.query(
       `
@@ -182,7 +195,7 @@ export async function getMostTriggeredRule(userId) {
         COUNT(*) AS trigger_count
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '24 hours'
+        AND created_at > NOW() - INTERVAL '30 days'
         AND rule_id IS NOT NULL
       GROUP BY rule_id
       ORDER BY trigger_count DESC
@@ -201,8 +214,9 @@ export async function getMostTriggeredRule(userId) {
 /**
  * Get traffic distribution by status code
  */
-export async function getStatusCodeDistribution(userId) {
+export async function getStatusCodeDistribution(userId, range = '30d') {
   try {
+    const { intervalSql } = parseRange(range);
     const { rows } = await db.query(
       `
       SELECT
@@ -210,7 +224,7 @@ export async function getStatusCodeDistribution(userId) {
         COUNT(*) AS count
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '24 hours'
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
       GROUP BY status_code
       ORDER BY count DESC
       `,
@@ -227,29 +241,41 @@ export async function getStatusCodeDistribution(userId) {
 /**
  * Get hourly traffic data for chart
  */
-export async function getHourlyTrafficData(userId) {
+export async function getHourlyTrafficData(userId, range = '30d') {
   try {
+    const { intervalSql, granularity, days } = parseRange(range);
+
+    const trunc = granularity === 'hour' ? 'hour' : 'day';
     const { rows } = await db.query(
       `
       SELECT
-        date_trunc('hour', created_at) AS time,
+        date_trunc('${trunc}', created_at) AS time,
         COUNT(*) AS requests,
         COUNT(*) FILTER (WHERE status_code = 429) AS blocked
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '24 hours'
-      GROUP BY date_trunc('hour', created_at)
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
+      GROUP BY date_trunc('${trunc}', created_at)
       ORDER BY time
       `,
       [userId]
     );
 
     if (rows.length === 0) {
-      return generateEmptyTrafficData();
+      if (granularity === 'hour') return generateEmptyTrafficData();
+      const data = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        data.push({ time: d.toISOString().slice(0, 10), requests: 0, blocked: 0 });
+      }
+      return data;
     }
 
     return rows.map(row => ({
-      time: new Date(row.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      time: granularity === 'hour'
+        ? new Date(row.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : new Date(row.time).toISOString().slice(0, 10),
       requests: parseInt(row.requests),
       blocked: parseInt(row.blocked)
     }));
@@ -262,8 +288,9 @@ export async function getHourlyTrafficData(userId) {
 /**
  * Get performance metrics
  */
-export async function getPerformanceMetrics(userId) {
+export async function getPerformanceMetrics(userId, range = '30d') {
   try {
+    const { intervalSql } = parseRange(range);
     // Get uptime (successful requests percentage)
     const { rows: uptimeRows } = await db.query(
       `
@@ -274,7 +301,7 @@ export async function getPerformanceMetrics(userId) {
         END AS uptime_percentage
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '30 days'
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
       `,
       [userId]
     );
@@ -327,8 +354,9 @@ export async function getPerformanceMetrics(userId) {
 /**
  * Get recent activity with proper categorization
  */
-export async function getRecentActivity(userId, limit = 6) {
+export async function getRecentActivity(userId, range = '30d', limit = 6) {
   try {
+    const { intervalSql } = parseRange(range);
     const { rows } = await db.query(
       `
       SELECT
@@ -341,7 +369,7 @@ export async function getRecentActivity(userId, limit = 6) {
         method
       FROM api_key_logs
       WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '24 hours'
+        AND created_at > NOW() - INTERVAL '${intervalSql}'
       ORDER BY created_at DESC
       LIMIT $2
       `,
@@ -397,9 +425,9 @@ function getTimeAgo(date) {
 /**
  * Get complete overview data
  */
-export async function getCompleteOverview(userId) {
+export async function getCompleteOverview(userId, range = '30d') {
   try {
-    console.log("Fetching overview data for user:", userId);
+    console.log("Fetching overview data for user:", userId, "range:", range);
 
     const [
       stats,
@@ -414,36 +442,29 @@ export async function getCompleteOverview(userId) {
       performance,
       activity
     ] = await Promise.all([
-      getDashboardStats(userId),
-      getSevenDayComparison(userId),
+      getDashboardStats(userId, range),
+      getSevenDayComparison(userId, range),
       getActiveRulesCount(userId),
       getProtectedServicesCount(userId),
-      getTopEndpoints(userId),
-      getPeakLoadTime(userId),
-      getMostTriggeredRule(userId),
-      getStatusCodeDistribution(userId),
-      getHourlyTrafficData(userId),
-      getPerformanceMetrics(userId),
-      getRecentActivity(userId)
+      getTopEndpoints(userId, range, 5),
+      getPeakLoadTime(userId, range),
+      getMostTriggeredRule(userId, range),
+      getStatusCodeDistribution(userId, range),
+      getHourlyTrafficData(userId, range),
+      getPerformanceMetrics(userId, range),
+      getRecentActivity(userId, range)
     ]);
 
-    // Calculate growth percentage
-    const prevDayRequests = sevenDayStats.requests_7d - stats.total_requests_24h;
-    const requestGrowth = prevDayRequests > 0
-      ? (((stats.total_requests_24h - prevDayRequests) / prevDayRequests) * 100).toFixed(1)
-      : 0;
-
-    const prevDayBlocked = sevenDayStats.blocked_7d - stats.blocked_requests_24h;
-    const blockGrowth = prevDayBlocked > 0
-      ? (((stats.blocked_requests_24h - prevDayBlocked) / prevDayBlocked) * 100).toFixed(1)
-      : 0;
+    // For now, avoid guessing growth numbers — set safe defaults
+    const requestGrowth = 0;
+    const blockGrowth = 0;
 
     return {
       stats: {
-        totalRequests: parseInt(stats?.total_requests_24h || 0),
-        blockedRequests: parseInt(stats?.blocked_requests_24h || 0),
-        blockRate: stats?.total_requests_24h > 0
-          ? ((stats.blocked_requests_24h / stats.total_requests_24h) * 100).toFixed(2)
+        totalRequests: parseInt(stats?.total_requests || 0),
+        blockedRequests: parseInt(stats?.blocked_requests || 0),
+        blockRate: stats?.total_requests > 0
+          ? ((stats.blocked_requests / stats.total_requests) * 100).toFixed(2)
           : 0,
         uniqueIPs: parseInt(stats?.unique_ips || 0),
         uniqueEndpoints: parseInt(stats?.unique_endpoints || 0),
