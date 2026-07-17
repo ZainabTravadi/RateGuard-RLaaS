@@ -3,7 +3,6 @@ import { incrementCounter, getRetryAfter } from '../src/modules/enforcement/coun
 const now = Math.floor(Date.now() / 1000);
 const results = [];
 for (let index = 0; index < 6; index += 1) {
-  // eslint-disable-next-line no-await-in-loop
   results.push(await incrementCounter({
     ruleId: 'auth:login',
     identifier: '127.0.0.1',

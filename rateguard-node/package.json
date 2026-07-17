@@ -1,20 +1,106 @@
 {
   "name": "@rateguard/node",
-  "version": "0.1.5",
+  "version": "0.1.8",
   "description": "Firebase-style rate limiting SDK powered by RateGuard",
+  "keywords": [
+    "rate-limit",
+    "rate-limiting",
+    "sdk",
+    "api",
+    "express",
+    "fastify",
+    "observability"
+  ],
+  "homepage": "https://rateguard.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RateGuard/rateguard.git",
+    "directory": "rateguard-node"
+  },
+  "bugs": {
+    "url": "https://github.com/RateGuard/rateguard/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/RateGuard"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "rateguard": "dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./rateguard": {
+      "import": "./dist/rateguard.js",
+      "types": "./dist/rateguard.d.ts"
+    },
+    "./errors": {
+      "import": "./dist/errors.js",
+      "types": "./dist/errors.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts"
+    },
+    "./doctor": {
+      "import": "./dist/doctor.js",
+      "types": "./dist/doctor.d.ts"
+    },
+    "./logger": {
+      "import": "./dist/logger.js",
+      "types": "./dist/logger.d.ts"
+    },
+    "./plugins": {
+      "import": "./dist/plugins.js",
+      "types": "./dist/plugins.d.ts"
+    },
+    "./policy": {
+      "import": "./dist/policy.js",
+      "types": "./dist/policy.d.ts"
     }
   },
   "files": [
-    "dist"
+    "dist/cli.js",
+    "dist/client.js",
+    "dist/config.js",
+    "dist/doctor.js",
+    "dist/errors.js",
+    "dist/index.js",
+    "dist/logger.js",
+    "dist/observability.js",
+    "dist/plugins.js",
+    "dist/policy-engine.js",
+    "dist/policy.js",
+    "dist/rateguard.js",
+    "dist/version.js",
+    "dist/client.d.ts",
+    "dist/doctor.d.ts",
+    "dist/errors.d.ts",
+    "dist/index.d.ts",
+    "dist/logger.d.ts",
+    "dist/observability.d.ts",
+    "dist/plugins.d.ts",
+    "dist/policy-engine.d.ts",
+    "dist/policy.d.ts",
+    "dist/rateguard.d.ts",
+    "dist/types.d.ts",
+    "dist/version.d.ts",
+    "README.md",
+    "LICENSE",
+    "package.json"
   ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsc",
+    "clean": "node ./scripts/clean-dist.mjs",
+    "prebuild": "npm run clean",
+    "build": "tsc -b --force",
+    "test": "npm run build && node --test dist/errors.test.js dist/config.test.js dist/client.test.js dist/rateguard.test.js dist/doctor.test.js",
+    "prepack": "npm run build",
+    "doctor": "node dist/cli.js doctor",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

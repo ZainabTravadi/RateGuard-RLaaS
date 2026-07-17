@@ -31,6 +31,23 @@ export interface AnalyticsSummary {
   }>;
 }
 
+type OverviewAnalyticsResponse = {
+  stats?: Record<string, unknown>;
+  insights?: {
+    topEndpoint?: {
+      endpoint?: unknown;
+      total_requests?: unknown;
+      blocked_count?: unknown;
+      block_rate?: unknown;
+    } | null;
+  };
+  trafficData?: Array<{
+    time?: unknown;
+    requests?: unknown;
+    blocked?: unknown;
+  }>;
+};
+
 function toNumber(value: unknown, fallback = 0) {
   const parsed = Number(value ?? fallback);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -40,19 +57,19 @@ function blockRate(requests: number, blocked: number) {
   return requests > 0 ? Number(((blocked / requests) * 100).toFixed(2)) : 0;
 }
 
-export function normalizeOverviewAnalytics(response: any): AnalyticsSummary {
+export function normalizeOverviewAnalytics(response: OverviewAnalyticsResponse | null | undefined): AnalyticsSummary {
   const stats = response?.stats ?? {};
   const topEndpoint = response?.insights?.topEndpoint;
   const trafficData = Array.isArray(response?.trafficData) ? response.trafficData : [];
   const totalRequests = toNumber(stats[ANALYTICS_FIELDS.totalRequests]);
   const blockedRequests = toNumber(stats[ANALYTICS_FIELDS.blockedRequests]);
 
-  const normalizedTraffic = trafficData.map((item: any) => {
+  const normalizedTraffic = trafficData.map((item) => {
     const requests = toNumber(item?.[ANALYTICS_FIELDS.requests]);
     const blocked = toNumber(item?.[ANALYTICS_FIELDS.blocked]);
 
     return {
-      key: item?.time ?? "unknown",
+      key: String(item?.time ?? "unknown"),
       requests,
       blocked,
       blockRate: blockRate(requests, blocked),
@@ -66,7 +83,7 @@ export function normalizeOverviewAnalytics(response: any): AnalyticsSummary {
     blockRate: toNumber(stats[ANALYTICS_FIELDS.blockRate], blockRate(totalRequests, blockedRequests)),
     topEndpoints: topEndpoint
       ? [{
-          key: topEndpoint.endpoint ?? "No endpoints yet",
+          key: String(topEndpoint.endpoint ?? "No endpoints yet"),
           requests: toNumber(topEndpoint.total_requests),
           blocked: toNumber(topEndpoint.blocked_count),
           blockRate: toNumber(topEndpoint.block_rate),

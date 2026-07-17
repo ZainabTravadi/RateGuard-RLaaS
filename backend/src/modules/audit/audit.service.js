@@ -1,4 +1,5 @@
 import { db } from "../../db/index.js";
+import { DatabaseError } from "../../errors/index.js";
 
 export async function logApiUsage({
   apiKeyId,
@@ -19,8 +20,11 @@ export async function logApiUsage({
       `,
       [apiKeyId, userId, method, endpoint, statusCode, ip, ruleId]
     );
-  } catch (err) {
-    // Logging must NEVER break requests
-    console.error("Audit log failed:", err.message);
+  } catch (error) {
+    throw new DatabaseError("Failed to persist API usage audit entry.", {
+      cause: error,
+      details: { apiKeyId, userId, endpoint, method },
+    });
   }
 }
+

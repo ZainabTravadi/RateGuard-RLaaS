@@ -45,38 +45,6 @@ export async function getDashboardStats(userId, range = '30d') {
 }
 
 /**
- * Get 7-day comparison for trend
- */
-export async function getSevenDayComparison(userId, range = '30d') {
-  try {
-    const { intervalSql } = parseRange(range);
-    const { rows } = await db.query(
-      `
-      SELECT
-        COUNT(*) AS requests_range,
-        COUNT(*) FILTER (WHERE status_code = 429) AS blocked_range,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') AS requests_1d,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day' AND status_code = 429) AS blocked_1d
-      FROM api_key_logs
-      WHERE user_id = $1
-        AND created_at > NOW() - INTERVAL '${intervalSql}'
-      `,
-      [userId]
-    );
-
-    return rows[0] || {
-      requests_range: 0,
-      blocked_range: 0,
-      requests_1d: 0,
-      blocked_1d: 0
-    };
-  } catch (err) {
-    console.error("getSevenDayComparison error:", err);
-    throw err;
-  }
-}
-
-/**
  * Get active rules count
  */
 export async function getActiveRulesCount(userId) {
@@ -186,7 +154,7 @@ export async function getPeakLoadTime(userId) {
 /**
  * Get most triggered rule
  */
-export async function getMostTriggeredRule(userId, range = '30d') {
+export async function getMostTriggeredRule(userId) {
   try {
     const { rows } = await db.query(
       `
@@ -427,11 +395,8 @@ function getTimeAgo(date) {
  */
 export async function getCompleteOverview(userId, range = '30d') {
   try {
-    console.log("Fetching overview data for user:", userId, "range:", range);
-
     const [
       stats,
-      sevenDayStats,
       activeRules,
       services,
       topEndpoints,
@@ -443,11 +408,10 @@ export async function getCompleteOverview(userId, range = '30d') {
       activity
     ] = await Promise.all([
       getDashboardStats(userId, range),
-      getSevenDayComparison(userId, range),
       getActiveRulesCount(userId),
       getProtectedServicesCount(userId),
       getTopEndpoints(userId, range, 5),
-      getPeakLoadTime(userId, range),
+      getPeakLoadTime(userId),
       getMostTriggeredRule(userId, range),
       getStatusCodeDistribution(userId, range),
       getHourlyTrafficData(userId, range),

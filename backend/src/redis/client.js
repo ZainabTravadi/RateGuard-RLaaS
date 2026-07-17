@@ -2,6 +2,7 @@ import Redis from "ioredis";
 import crypto from "crypto";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
+import { TransportError } from "../errors/index.js";
 
 let redisClient = null;
 let redisReadyPromise = null;
@@ -39,12 +40,17 @@ function createMockRedis() {
         return sha;
       }
 
-      throw new Error('Unsupported script command');
+      throw new TransportError("Unsupported mock Redis script command.", {
+        backend: "redis",
+        details: { cmd },
+      });
     },
     async evalsha(sha, numKeys, ...args) {
       const script = this.scripts.get(sha);
       if (!script) {
-        const err = new Error('NOSCRIPT No matching script. Please use EVAL');
+        const err = new TransportError("NOSCRIPT No matching script. Please use EVAL", {
+          backend: "redis",
+        });
         err.code = 'NOSCRIPT';
         throw err;
       }
@@ -94,14 +100,14 @@ function createMockRedis() {
       store.set(key, String(next));
       return next;
     },
-    async eval(script, numKeys, key) {
+    async eval(script, numKeys, key, ...args) {
       // Support the sliding-window increment script which uses ZREMRANGEBYSCORE, INCR, ZADD and EXPIRE
       if (script.includes("ZREMRANGEBYSCORE") && script.includes("INCR") && script.includes("ZADD")) {
-        const sequenceKey = arguments[3];
-        const nowMs = Number(arguments[4]);
-        const windowMs = Number(arguments[5]);
-        const limitCount = Number(arguments[6]);
-        const ttl = Number(arguments[7]);
+        const [sequenceKey, nowMsRaw, windowMsRaw, limitCountRaw, ttlRaw] = args;
+        const nowMs = Number(nowMsRaw);
+        const windowMs = Number(windowMsRaw);
+        const limitCount = Number(limitCountRaw);
+        const ttl = Number(ttlRaw);
 
         let bucket = store.get(key) || [];
         bucket = bucket.filter((entry) => entry.score > nowMs - windowMs);
@@ -134,8 +140,9 @@ function createMockRedis() {
 
       // Support the earliest lookup script
       if (script.includes("ZRANGE") && script.includes("return -1")) {
-        const nowMs = Number(arguments[3]);
-        const windowMs = Number(arguments[4]);
+        const [nowMsRaw, windowMsRaw] = args;
+        const nowMs = Number(nowMsRaw);
+        const windowMs = Number(windowMsRaw);
         let bucket = store.get(key) || [];
         bucket = bucket.filter((entry) => entry.score > nowMs - windowMs);
         store.set(key, bucket);
@@ -147,7 +154,9 @@ function createMockRedis() {
         return bucket[0].score;
       }
 
-      throw new Error("Mock Redis received an unsupported eval script");
+      throw new TransportError("Mock Redis received an unsupported eval script.", {
+        backend: "redis",
+      });
     },
     async expire(key, ttlSeconds) {
       if (ttlSeconds <= 0) {
@@ -269,9 +278,9 @@ export async function getRedis() {
     if (protocol === 'rediss:' || hostname.includes('upstash') || env.REDIS_URL.startsWith('rediss://')) {
       redisOptions.tls = {};
     }
-  } catch (err) {
-    // ignore URL parse errors and proceed without TLS
-  }
+    } catch {
+      // ignore URL parse errors and proceed without TLS
+    }
 
   redisClient = new Redis(env.REDIS_URL, redisOptions);
 
@@ -319,4 +328,17 @@ export async function getRedis() {
     });
 
   return redisReadyPromise;
+}
+
+export async function closeRedis() {
+  if (redisClient) {
+    await redisClient.quit().catch(() => redisClient.disconnect());
+    redisClient = null;
+    redisReadyPromise = null;
+  }
+
+  if (mockRedis) {
+    await mockRedis.quit().catch(() => undefined);
+    mockRedis = null;
+  }
 }

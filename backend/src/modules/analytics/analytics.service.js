@@ -174,11 +174,7 @@ export async function recordRequestMetrics({ apiKeyId, identifier, endpoint, met
       if (apiKeyId) keys.push(`${API_KEY_PREFIX}${encodeMetricSegment(apiKeyId)}:violations`);
     }
 
-    const recordStart = Date.now();
     await incrementMetrics(redis, keys);
-    const recordDuration = Date.now() - recordStart;
-    
-    console.log(`[Redis Metrics] Recorded: allowed=${allowed}, keys=${keys.length}, durationMs=${recordDuration}, isMock=${redis.isMock}`);
   } catch (err) {
     console.error("[Redis Metrics] FAILED to write metrics:", err?.message || err);
   }
@@ -350,4 +346,113 @@ export async function getTopEndpoints(userId, range = '30d', limit = 10) {
     ...r,
     percentage: rows[0] && rows[0].requests ? Math.round((r.requests / rows[0].requests) * 100) : 0
   }));
+}
+
+export async function getTrafficHeatmap(userId, range = '30d') {
+  const m = String(range).match(/^(\d+)([dh])$/);
+  const intervalSql = m ? (m[2] === 'h' ? `${m[1]} hours` : `${m[1]} days`) : '30 days';
+  const { rows } = await db.query(
+    `
+    SELECT
+      EXTRACT(DOW FROM created_at)::INTEGER AS day,
+      EXTRACT(HOUR FROM created_at)::INTEGER AS hour,
+      COUNT(*) AS requests,
+      COUNT(*) FILTER (WHERE status_code = 429) AS blocked
+    FROM api_key_logs
+    WHERE user_id = $1
+      AND created_at > NOW() - INTERVAL '${intervalSql}'
+    GROUP BY day, hour
+    ORDER BY day, hour
+    `,
+    [userId]
+  );
+
+  return rows.map((row) => ({
+    day: Number(row.day),
+    hour: Number(row.hour),
+    requests: Number(row.requests),
+    blocked: Number(row.blocked),
+    blockRate: Number(row.requests) > 0 ? Number(((Number(row.blocked) / Number(row.requests)) * 100).toFixed(2)) : 0
+  }));
+}
+
+export async function getTopAttackers(userId, range = '30d', limit = 10) {
+  const m = String(range).match(/^(\d+)([dh])$/);
+  const intervalSql = m ? (m[2] === 'h' ? `${m[1]} hours` : `${m[1]} days`) : '30 days';
+  const { rows } = await db.query(
+    `
+    SELECT
+      COALESCE(ip_address, 'unknown') AS ip,
+      COUNT(*) AS requests,
+      COUNT(*) FILTER (WHERE status_code = 429) AS blocked,
+      COUNT(DISTINCT endpoint) AS unique_endpoints
+    FROM api_key_logs
+    WHERE user_id = $1
+      AND created_at > NOW() - INTERVAL '${intervalSql}'
+    GROUP BY COALESCE(ip_address, 'unknown')
+    ORDER BY blocked DESC, requests DESC
+    LIMIT $2
+    `,
+    [userId, limit]
+  );
+
+  return rows.map((row) => ({
+    ip: row.ip,
+    requests: Number(row.requests),
+    blocked: Number(row.blocked),
+    unique_endpoints: Number(row.unique_endpoints),
+    blockRate: Number(row.requests) > 0 ? Number(((Number(row.blocked) / Number(row.requests)) * 100).toFixed(2)) : 0
+  }));
+}
+
+export async function getTopApiKeys(userId, range = '30d', limit = 10) {
+  const m = String(range).match(/^(\d+)([dh])$/);
+  const intervalSql = m ? (m[2] === 'h' ? `${m[1]} hours` : `${m[1]} days`) : '30 days';
+  const { rows } = await db.query(
+    `
+    SELECT
+      COALESCE(k.name, k.key_prefix, k.id::text) AS name,
+      k.id AS api_key_id,
+      COUNT(*) AS requests,
+      COUNT(*) FILTER (WHERE l.status_code = 429) AS blocked
+    FROM api_key_logs l
+    JOIN api_keys k ON k.id = l.api_key_id
+    WHERE l.user_id = $1
+      AND l.created_at > NOW() - INTERVAL '${intervalSql}'
+    GROUP BY k.id, COALESCE(k.name, k.key_prefix, k.id::text)
+    ORDER BY requests DESC
+    LIMIT $2
+    `,
+    [userId, limit]
+  );
+
+  return rows.map((row) => ({
+    api_key_id: row.api_key_id,
+    name: row.name,
+    requests: Number(row.requests),
+    blocked: Number(row.blocked),
+    blockRate: Number(row.requests) > 0 ? Number(((Number(row.blocked) / Number(row.requests)) * 100).toFixed(2)) : 0
+  }));
+}
+
+export async function getThreatSignals(userId, range = '30d') {
+  const [heatmap, attackers, endpoints, performance] = await Promise.all([
+    getTrafficHeatmap(userId, range),
+    getTopAttackers(userId, range, 5),
+    getTopEndpoints(userId, range, 5),
+    getPerformanceMetrics(userId, range)
+  ]);
+
+  const peak = heatmap.reduce((max, entry) => Math.max(max, Number(entry.requests) || 0), 0);
+  const average = heatmap.length ? heatmap.reduce((sum, entry) => sum + Number(entry.requests || 0), 0) / heatmap.length : 0;
+  const anomalyScore = average > 0 ? Number((peak / average).toFixed(2)) : 0;
+
+  return {
+    heatmap,
+    attackers,
+    endpoints,
+    performance,
+    anomalyScore,
+    severity: anomalyScore >= 3 ? 'high' : anomalyScore >= 2 ? 'medium' : 'low'
+  };
 }

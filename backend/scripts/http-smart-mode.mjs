@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import jwt from 'jsonwebtoken';
-import { db } from '../src/db/index.js';
 import { createApiKey } from '../src/modules/api-keys/apiKeys.service.js';
 
 const baseUrl = 'http://127.0.0.1:4000';
@@ -38,7 +37,6 @@ async function postCheck(body, key = apiKey) {
 
 const burst = [];
 for (let index = 0; index < 6; index += 1) {
-  // eslint-disable-next-line no-await-in-loop
   burst.push(await postCheck({ identifier, endpoint, method: 'POST', smartMode: true }));
 }
 

@@ -1,5 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import { randomUUID } from "crypto";
 import { env } from "./config/env.js";
 
 import { authRoutes } from "./modules/auth/auth.routes.js";
@@ -13,16 +15,33 @@ import gatewayRoutes from "./modules/gateway/gateway.routes.js";
 import { overviewRoutes } from "./modules/overview/overview.routes.js";
 import { workspaceRoutes } from "./modules/workspaces/workspaces.routes.js";
 import { notificationRoutes } from "./modules/notifications/notifications.routes.js";
-import { debugRoutes } from "./modules/debug/debug.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
-export const app = Fastify({ logger: true });
+export const app = Fastify({
+  logger: {
+    level: env.NODE_ENV === "production" ? "info" : "debug",
+    redact: {
+      paths: [
+        "req.headers.authorization",
+        "req.headers.x-api-key",
+        "req.headers.cookie",
+        "res.headers.set-cookie",
+      ],
+      remove: true,
+    },
+  },
+  requestIdHeader: "x-request-id",
+  genReqId: (request) => {
+    return String(request.headers["x-request-id"] || request.headers["x-correlation-id"] || randomUUID());
+  },
+});
 
-/* ------------------------------------------------------- */
-
-app.addHook("onRequest", async (request) => {
+app.addHook("onRequest", async (request, reply) => {
+  reply.header("X-Request-Id", request.id);
+  reply.header("X-Correlation-Id", request.id);
   request.log.info(
     {
+      requestId: request.id,
       method: request.method,
       url: request.url,
       ip: request.ip,
@@ -33,19 +52,15 @@ app.addHook("onRequest", async (request) => {
 
 app.setErrorHandler(errorHandler);
 
-app.addHook("onSend", async (_request, reply, payload) => {
-  reply.header("X-Content-Type-Options", "nosniff");
-  reply.header("X-Frame-Options", "DENY");
-  return payload;
+await app.register(helmet, {
+  global: true,
 });
 
 await app.register(cors, {
-  // In production restrict to the frontend deployed origin, otherwise allow all for local/dev
   origin: (origin, cb) => {
-    // allow requests with no origin like curl/postman
     if (!origin) return cb(null, true);
     if (env.NODE_ENV === "production") {
-      const allowed = "https://rateguard-frontend.vercel.app";
+      const allowed = process.env.FRONTEND_URL || "https://rateguard-frontend.vercel.app";
       return cb(null, origin === allowed);
     }
     return cb(null, true);
@@ -56,11 +71,12 @@ await app.register(cors, {
     "Content-Type",
     "x-api-key",
     "x-workspace-id",
+    "x-request-id",
+    "x-correlation-id",
   ],
   credentials: true,
 });
 
-/* ---------------- DASHBOARD (JWT AUTH) ---------------- */
 await app.register(authRoutes);
 await app.register(rulesRoutes);
 await app.register(overviewRoutes);
@@ -71,9 +87,5 @@ await app.register(environmentsRoutes);
 await app.register(analyticsRoutes);
 await app.register(logsRoutes);
 await app.register(gatewayRoutes);
-
-/* ---------------- EXTERNAL API (API KEYS) ---------------- */
 await app.register(externalApiRoutes);
 
-/* ------------- DEBUG & TROUBLESHOOTING (Development) ------------- */
-await app.register(debugRoutes);

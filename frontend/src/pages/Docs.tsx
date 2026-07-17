@@ -14,7 +14,7 @@ export default function DocsPage() {
       await navigator.clipboard.writeText(code);
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
-    } catch (err) {
+    } catch {
       const textarea = document.createElement('textarea');
       textarea.value = code;
       textarea.style.position = 'fixed';
@@ -56,42 +56,30 @@ import { RateGuard } from "@rateguard/node";
 
 dotenv.config();
 
-RateGuard.init({
-  apiKey: process.env.RATEGUARD_API_KEY,
-  baseUrl: process.env.RATEGUARD_BASE_URL
-});
+const rateGuard = RateGuard.builder()
+  .apiKey(process.env.RATEGUARD_API_KEY ?? "")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .build();
 
 const app = express();
 
 app.use(express.json());
-
 app.use(
-  RateGuard.middleware({
-    identifier: (req) =>
-      req.headers["x-user-id"] || req.ip
+  rateGuard.middleware({
+    identifier: (req) => req.headers["x-user-id"]?.toString() ?? req.ip ?? "anonymous",
   })
 );
 
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok"
-  });
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
-app.get("/test", (req, res) => {
-  res.json({
-    success: true,
-    message: "Protected route"
-  });
+app.get("/test", (_req, res) => {
+  res.json({ success: true, message: "Protected route" });
 });
 
 const PORT = 3000;
-
-app.listen(PORT, () => {
-  console.log(
-    \`Test app running on http://localhost:\${PORT}\`
-  );
-});`,
+app.listen(PORT);`,
       description: "Copy-paste ready Express app with RateGuard middleware"
     }
   ];

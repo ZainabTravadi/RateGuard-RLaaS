@@ -4,6 +4,8 @@
  */
 
 import nodemailer from 'nodemailer';
+import { logger } from "./logger.js";
+import { ConfigurationError, TransportError } from "../errors/index.js";
 
 export const emailProviders = {
   smtp: "smtp",
@@ -27,7 +29,7 @@ export async function sendEmail(to, subject, html, text = null) {
       ? emailProviders.smtp
       : emailProviders.console);
 
-  console.log(`📧 Sending email via ${provider} to ${to}`);
+  logger.info({ provider, to }, "sending email");
 
   try {
     switch (provider) {
@@ -44,7 +46,7 @@ export async function sendEmail(to, subject, html, text = null) {
         return await sendViaConsole(to, subject, html, text);
     }
   } catch (err) {
-    console.error("Email sending failed:", err);
+    logger.error({ err }, "email sending failed");
     throw err;
   }
 }
@@ -69,10 +71,10 @@ async function sendViaSMTP(to, subject, html, text) {
   let transporter;
   
   if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
-    console.log("⚠️  No SMTP credentials - falling back to console email logging");
+    logger.warn("No SMTP credentials - falling back to console email logging");
     return sendViaConsole(to, subject, html, text);
   } else {
-    console.log(`✅ Using SMTP credentials for ${smtpConfig.auth.user}`);
+    logger.info({ user: smtpConfig.auth.user }, "using SMTP credentials");
     transporter = nodemailer.createTransport(smtpConfig);
   }
 
@@ -86,11 +88,11 @@ async function sendViaSMTP(to, subject, html, text) {
     html,
   });
 
-  console.log(`✅ Email sent: ${info.messageId}`);
+  logger.info({ messageId: info.messageId }, "email sent");
   
   // If using Ethereal, log the preview URL
   if (!smtpConfig.auth.user) {
-    console.log(`📬 Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+    logger.info({ previewUrl: nodemailer.getTestMessageUrl(info) }, "email preview url");
   }
 
   return { 
@@ -104,17 +106,11 @@ async function sendViaSMTP(to, subject, html, text) {
 /**
  * Development: Log to console
  */
-async function sendViaConsole(to, subject, html, text) {
-  console.log(`
-    ╔════════════════════════════════════════════╗
-    ║           EMAIL PREVIEW (DEVELOPMENT)      ║
-    ╚════════════════════════════════════════════╝
-    TO: ${to}
-    SUBJECT: ${subject}
-    ────────────────────────────────────────────
-    ${html}
-    ────────────────────────────────────────────
-  `);
+async function sendViaConsole(to, subject, _html, _text) {
+  logger.info({
+    to,
+    subject,
+  }, "email preview (development)");
 
   return { success: true, provider: "console", messageId: "dev-" + Date.now() };
 }
@@ -128,7 +124,9 @@ async function sendViaSendGrid(to, subject, html, text) {
   const fromEmail = process.env.FROM_EMAIL || "noreply@rateguard.io";
 
   if (!apiKey) {
-    throw new Error("SENDGRID_API_KEY not configured");
+    throw new ConfigurationError("SENDGRID_API_KEY is not configured.", {
+      details: { provider: "sendgrid" },
+    });
   }
 
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
@@ -154,7 +152,9 @@ async function sendViaSendGrid(to, subject, html, text) {
   });
 
   if (!response.ok) {
-    throw new Error(`SendGrid error: ${response.statusText}`);
+    throw new TransportError(`SendGrid error: ${response.statusText}`, {
+      backend: "sendgrid",
+    });
   }
 
   return { success: true, provider: "sendgrid", messageId: response.headers.get("x-message-id") };
@@ -170,7 +170,9 @@ async function sendViaMailgun(to, subject, html, text) {
   const fromEmail = process.env.FROM_EMAIL || `noreply@${domain}`;
 
   if (!apiKey || !domain) {
-    throw new Error("MAILGUN_API_KEY or MAILGUN_DOMAIN not configured");
+    throw new ConfigurationError("MAILGUN_API_KEY or MAILGUN_DOMAIN is not configured.", {
+      details: { provider: "mailgun" },
+    });
   }
 
   const formData = new FormData();
@@ -191,7 +193,9 @@ async function sendViaMailgun(to, subject, html, text) {
   });
 
   if (!response.ok) {
-    throw new Error(`Mailgun error: ${response.statusText}`);
+    throw new TransportError(`Mailgun error: ${response.statusText}`, {
+      backend: "mailgun",
+    });
   }
 
   const data = await response.json();
@@ -226,7 +230,10 @@ async function sendViaSES(to, subject, html, text) {
     const response = await client.send(command);
     return { success: true, provider: "aws_ses", messageId: response.MessageId };
   } catch (err) {
-    throw new Error(`AWS SES error: ${err.message}`);
+    throw new TransportError(`AWS SES error: ${err.message}`, {
+      backend: "aws_ses",
+      cause: err,
+    });
   }
 }
 

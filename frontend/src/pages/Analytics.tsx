@@ -1,5 +1,4 @@
-import {useEffect, useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -17,66 +16,54 @@ import {
 import { api } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface TimeSeriesPoint {
+  time: string;
+  rps: number;
+  allowed: number;
+  blocked: number;
+}
 
-const timeSeriesData = [
-  { time: "00:00", rps: 120, allowed: 115, blocked: 5 },
-  { time: "02:00", rps: 80, allowed: 78, blocked: 2 },
-  { time: "04:00", rps: 60, allowed: 59, blocked: 1 },
-  { time: "06:00", rps: 150, allowed: 142, blocked: 8 },
-  { time: "08:00", rps: 280, allowed: 265, blocked: 15 },
-  { time: "10:00", rps: 340, allowed: 320, blocked: 20 },
-  { time: "12:00", rps: 380, allowed: 355, blocked: 25 },
-  { time: "14:00", rps: 320, allowed: 305, blocked: 15 },
-  { time: "16:00", rps: 290, allowed: 278, blocked: 12 },
-  { time: "18:00", rps: 250, allowed: 242, blocked: 8 },
-  { time: "20:00", rps: 200, allowed: 195, blocked: 5 },
-  { time: "22:00", rps: 160, allowed: 156, blocked: 4 },
-];
+interface AllowedVsBlockedPoint {
+  name: string;
+  allowed: number;
+  blocked: number;
+}
 
-const allowedVsBlockedData = [
-  { name: "Mon", allowed: 12500, blocked: 340 },
-  { name: "Tue", allowed: 14200, blocked: 420 },
-  { name: "Wed", allowed: 13800, blocked: 380 },
-  { name: "Thu", allowed: 15600, blocked: 510 },
-  { name: "Fri", allowed: 16200, blocked: 580 },
-  { name: "Sat", allowed: 9800, blocked: 220 },
-  { name: "Sun", allowed: 8400, blocked: 180 },
-];
+interface TopEndpointPoint {
+  endpoint: string;
+  requests: number;
+  blocked: number;
+  percentage: number;
+}
 
-const topEndpoints = [
-  { endpoint: "/api/users", requests: 45200, blocked: 1200, percentage: 28 },
-  { endpoint: "/api/auth/login", requests: 32100, blocked: 890, percentage: 20 },
-  { endpoint: "/api/products", requests: 28400, blocked: 420, percentage: 18 },
-  { endpoint: "/api/orders", requests: 18900, blocked: 310, percentage: 12 },
-  { endpoint: "/api/search", requests: 15600, blocked: 580, percentage: 10 },
-  { endpoint: "/api/analytics", requests: 12300, blocked: 150, percentage: 8 },
-];
+interface AnalyticsResponse {
+  timeSeries?: TimeSeriesPoint[];
+  allowedVsBlocked?: AllowedVsBlockedPoint[];
+  topEndpoints?: TopEndpointPoint[];
+}
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("30d");
 
-  // 🔥 replace static data with state
-  const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
-  const [allowedVsBlockedData, setAllowedVsBlockedData] = useState<any[]>([]);
-  const [topEndpoints, setTopEndpoints] = useState<any[]>([]);
+  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesPoint[]>([]);
+  const [allowedVsBlockedData, setAllowedVsBlockedData] = useState<AllowedVsBlockedPoint[]>([]);
+  const [topEndpoints, setTopEndpoints] = useState<TopEndpointPoint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔥 ADD useEffect HERE (before return)
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await api(`/analytics?range=${timeRange}`);
+        const res = (await api(`/analytics?range=${timeRange}`)) as AnalyticsResponse;
         if (cancelled) return;
-        console.log("FRONTEND ANALYTICS", res);
         setTimeSeriesData(res.timeSeries || []);
         setAllowedVsBlockedData(res.allowedVsBlocked || []);
         setTopEndpoints(res.topEndpoints || []);
-      } catch (err) {
-        console.error("Failed to load analytics:", err);
+      } catch (error) {
+        console.error("Failed to load analytics:", error);
         setError("Failed to load analytics. Please try again.");
       } finally {
         if (!cancelled) setLoading(false);
@@ -319,7 +306,7 @@ export default function AnalyticsPage() {
                     <td colSpan={5} className="p-6 text-center text-muted-foreground">No endpoints yet</td>
                   </tr>
                 ) : (
-                  topEndpoints.map((endpoint, index) => {
+                    topEndpoints.map((endpoint, index) => {
                     return (
                       <tr key={endpoint.endpoint} className="table-row">
                         <td className="py-3 px-4">

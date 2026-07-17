@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
@@ -60,16 +60,19 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   );
 }
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  className?: string;
   padding?: boolean;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
-export function Card({ children, className = "", padding = true, style }: CardProps) {
+export function Card({ children, className = "", padding = true, style, ...props }: CardProps) {
   return (
-    <div className={`rounded-xl border border-border bg-card ${padding ? "p-6" : ""} ${className}`} style={style}>
+    <div
+      className={`rounded-xl border border-border bg-card ${padding ? "p-6" : ""} ${className}`}
+      style={style}
+      {...props}
+    >
       {children}
     </div>
   );

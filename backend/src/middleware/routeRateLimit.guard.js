@@ -1,8 +1,13 @@
 import { incrementCounter, getRetryAfter } from "../modules/enforcement/counter.store.js";
 import { env } from "../config/env.js";
+import { RateLimitExceededError, TransportError } from "../errors/index.js";
 
-export function createRouteRateLimitGuard({ routeId, limitCount, windowSeconds }) {
-  return async function routeRateLimitGuard(req, reply) {
+function shouldAllowOnFailure(failMode) {
+  return failMode === "failOpen" || failMode === "warnOnly" || failMode === "shadowMode";
+}
+
+export function createRouteRateLimitGuard({ routeId, limitCount, windowSeconds, failMode = env.RATE_LIMIT_FAIL_MODE }) {
+  return async function routeRateLimitGuard(req, _reply) {
     try {
       const now = Math.floor(Date.now() / 1000);
       const result = await incrementCounter({
@@ -25,33 +30,46 @@ export function createRouteRateLimitGuard({ routeId, limitCount, windowSeconds }
       });
       const retryAfter = retryRes?.retryAfter ?? retryRes;
 
-      req.log.warn(
-        {
-          routeId,
-          ip: req.ip,
-          path: req.url,
-          limitCount,
-          windowSeconds,
-        },
-        "route rate limit denied"
-      );
-
-      return reply.code(429).header("Retry-After", retryAfter).send({
-        error: "Too Many Requests",
-        code: "RATE_LIMIT_EXCEEDED",
-        message: "Rate limit exceeded",
-      });
-    } catch (error) {
-      req.log.error(
-        { err: error, routeId, ip: req.ip, path: req.url },
-        "route rate limit failed"
-      );
-
-      if (env.RATE_LIMIT_FAIL_OPEN) {
+      if (failMode === "shadowMode" || failMode === "warnOnly") {
+        req.log.warn(
+          {
+            routeId,
+            ip: req.ip,
+            path: req.url,
+            limitCount,
+            windowSeconds,
+            retryAfter,
+            failMode,
+          },
+          "route rate limit shadowed"
+        );
         return;
       }
 
-      throw error;
+      throw new RateLimitExceededError("Rate limit exceeded.", {
+        retryAfter,
+        details: {
+          routeId,
+          limitCount,
+          windowSeconds,
+        },
+        documentationURL: "https://rateguard.dev/docs/errors",
+      });
+    } catch (error) {
+      req.log.error(
+        { err: error, routeId, ip: req.ip, path: req.url, failMode },
+        "route rate limit failed"
+      );
+
+      if (shouldAllowOnFailure(failMode)) {
+        return;
+      }
+
+      throw new TransportError("Rate limit enforcement failed.", {
+        cause: error,
+        backend: "redis",
+        details: { routeId, limitCount, windowSeconds },
+      });
     }
   };
 }

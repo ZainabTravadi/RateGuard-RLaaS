@@ -66,7 +66,6 @@ const server = app.listen(port, async () => {
 
     results.push(await fetchJson('/skip'));
     for (let index = 0; index < 6; index += 1) {
-      // eslint-disable-next-line no-await-in-loop
       results.push(await fetchJson('/api/pdf-to-txt', 'POST'));
     }
 

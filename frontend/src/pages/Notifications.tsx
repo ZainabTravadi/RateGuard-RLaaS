@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/stat-card";
+import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Bell, Check, X, Mail, Clock } from "lucide-react";
 import api from "@/lib/api";
@@ -58,8 +58,8 @@ export default function NotificationsPage() {
         // Reload page to update workspace context
         window.location.href = "/app";
       }
-    } catch (err: any) {
-      alert(err.message || "Failed to accept invitation");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to accept invitation");
     } finally {
       setProcessingId(null);
     }
@@ -76,8 +76,8 @@ export default function NotificationsPage() {
         // Remove notification from list
         setNotifications(prev => prev.filter(n => n.id !== notificationId));
       }
-    } catch (err: any) {
-      alert(err.message || "Failed to reject invitation");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to reject invitation");
     } finally {
       setProcessingId(null);
     }
@@ -94,18 +94,6 @@ export default function NotificationsPage() {
       );
     } catch (err) {
       console.error("Failed to mark as read:", err);
-    }
-  };
-
-  const handleDelete = async (notificationId: string) => {
-    try {
-      await api(`/notifications/${notificationId}`, {
-        method: "DELETE",
-      });
-
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    } catch (err) {
-      console.error("Failed to delete notification:", err);
     }
   };
 

@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { ValidationError } from "../errors/index.js";
 
 export function validateBody(schema) {
   return async function validateBodyHook(req) {
@@ -6,12 +7,15 @@ export function validateBody(schema) {
       req.body = schema.parse(req.body ?? {});
     } catch (error) {
       if (error instanceof ZodError) {
-        const validationError = new Error("Invalid input");
-        validationError.code = "VALIDATION_ERROR";
-        throw validationError;
+        throw new ValidationError("Invalid request body.", {
+          details: { issues: error.issues },
+          cause: error,
+          documentationURL: "https://rateguard.dev/docs/errors",
+        });
       }
 
       throw error;
     }
   };
 }
+

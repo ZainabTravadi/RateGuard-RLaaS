@@ -1,0 +1,74 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "npm dist-tag to publish"
+        required: true
+        default: "stable"
+        type: choice
+        options:
+          - stable
+          - beta
+          - next
+          - nightly
+
+jobs:
+  publish:
+    name: Publish to npm and GitHub Releases
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run build --workspaces --if-present
+      - run: npm test --workspace @rateguard/node
+      - run: npm test --workspace backend
+      - name: Resolve channel
+        id: channel
+        shell: bash
+        env:
+          INPUT_CHANNEL: ${{ github.event.inputs.channel }}
+        run: |
+          tag_name="${GITHUB_REF_NAME}"
+          channel="stable"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && -n "${INPUT_CHANNEL}" ]]; then
+            channel="${INPUT_CHANNEL}"
+          fi
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            if [[ "$tag_name" == *"nightly"* ]]; then
+              channel="nightly"
+            elif [[ "$tag_name" == *"next"* ]]; then
+              channel="next"
+            elif [[ "$tag_name" == *"beta"* ]]; then
+              channel="beta"
+            else
+              channel="stable"
+            fi
+          fi
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - name: Publish npm package
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run release:${{ steps.channel.outputs.channel }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ steps.channel.outputs.channel != 'stable' }}

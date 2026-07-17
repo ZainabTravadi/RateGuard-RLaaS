@@ -43,7 +43,8 @@ export function validatePassword(password: string): PasswordStrength {
   }
 
   // Check for special characters
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  const specialCharacters = new RegExp('[!@#$%^&*()_+=\\[\\]{};:\\"\\\\|,.<>/?-]');
+  if (!specialCharacters.test(password)) {
     errors.push("Password must contain at least one special character (!@#$%^&*, etc.)");
   } else {
     score += 1;

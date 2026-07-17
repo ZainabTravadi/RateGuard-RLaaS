@@ -1,5 +1,6 @@
 import { db } from "../db/index.js";
 import { randomUUID } from "crypto";
+import { logger } from "../utils/logger.js";
 
 /**
  * Workspace Authorization Middleware
@@ -107,7 +108,7 @@ export async function workspaceGuard(req, reply) {
         membership = retry.rows[0];
       } catch (provisionErr) {
         await client.query("ROLLBACK");
-        console.error("Workspace auto-provision failed:", provisionErr);
+        logger.error({ err: provisionErr, userId: req.user.userId }, "workspace auto-provision failed");
         return reply.code(500).send({
           success: false,
           message: "Workspace authorization failed"
@@ -146,7 +147,7 @@ export async function workspaceGuard(req, reply) {
     };
 
   } catch (err) {
-    console.error("Workspace guard error:", err?.message || err);
+    logger.error({ err, userId: req.user?.userId }, "workspace guard error");
     return reply.code(500).send({ 
       success: false, 
       message: "Workspace authorization failed" 

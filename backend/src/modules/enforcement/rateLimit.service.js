@@ -43,7 +43,7 @@ const DEFAULT_STRATEGIES = {
  * @param {Function} [deps.metricsRecorder]
  * @returns {Promise<RateLimitDecision>}
  */
-export async function evaluate({ rules, identifier, endpoint, method, environmentId, apiKeyId, now, smartMode: requestSmartMode }, deps = {}) {
+export async function evaluate({ rules, identifier, endpoint, method, environmentId: _environmentId, apiKeyId, now, smartMode: requestSmartMode }, deps = {}) {
   const strategies = deps.strategies || DEFAULT_STRATEGIES;
   const metricsRecorder = deps.metricsRecorder || recordRequestMetrics;
 

@@ -1,0 +1,41 @@
+{
+  "name": "@rateguard/cloudflare",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Workers helpers for RateGuard.",
+  "keywords": ["rate-limit", "cloudflare-workers", "middleware", "sdk"],
+  "homepage": "https://rateguard.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RateGuard/rateguard.git",
+    "directory": "packages/cloudflare"
+  },
+  "bugs": {
+    "url": "https://github.com/RateGuard/rateguard/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/RateGuard"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "peerDependencies": {
+    "@rateguard/node": "*"
+  },
+  "license": "MIT"
+}

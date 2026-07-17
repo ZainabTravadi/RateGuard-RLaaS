@@ -20,7 +20,7 @@ import { incrementCounter, getRetryAfter } from '../counter.store.js';
  * @param {Object} [deps]
  * @returns {Promise<StrategyResult>}
  */
-export async function evaluateRule({ rule, identifier, now }, deps = {}) {
+export async function evaluateRule({ rule, identifier, now }) {
   // delegate to counter.store which encapsulates Redis/Lua logic
   const res = await incrementCounter({
     ruleId: rule.id,

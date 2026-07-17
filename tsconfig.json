@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./rateguard-node/tsconfig.json" },
+    { "path": "./packages/express/tsconfig.json" },
+    { "path": "./packages/fastify/tsconfig.json" },
+    { "path": "./packages/koa/tsconfig.json" },
+    { "path": "./packages/hono/tsconfig.json" },
+    { "path": "./packages/next/tsconfig.json" },
+    { "path": "./packages/cloudflare/tsconfig.json" },
+    { "path": "./packages/bun/tsconfig.json" },
+    { "path": "./packages/deno/tsconfig.json" },
+    { "path": "./packages/nest/tsconfig.json" },
+    { "path": "./frontend/tsconfig.json" }
+  ]
+}

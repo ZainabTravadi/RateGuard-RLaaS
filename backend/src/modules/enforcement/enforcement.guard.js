@@ -1,11 +1,8 @@
-// src/modules/enforcement/enforcement.guard.js
 import { getEnvironments } from "../environments/environments.service.js";
 import { getRulesByUser } from "../rules/rules.service.js";
 import { evaluate as evaluateRateLimit } from "./rateLimit.service.js";
+import { DatabaseError } from "../../errors/index.js";
 
-/**
- * Gateway-only blocking middleware
- */
 export async function enforcementGuard(req, reply) {
   if (!req.apiKey) return;
 
@@ -16,55 +13,56 @@ export async function enforcementGuard(req, reply) {
 
   const { userId, environment } = req.apiKey;
 
-  const environments = await getEnvironments(userId);
-  const env = environments.find(
-    (e) => e.name === environment && e.is_active
-  );
+  try {
+    const environments = await getEnvironments(userId);
+    const env = environments.find((entry) => entry.name === environment && entry.is_active);
 
-  if (!env) return;
+    if (!env) return;
 
-  const rules = await getRulesByUser(userId, env.id);
-  if (!rules.length) return;
+    const rules = await getRulesByUser(userId, env.id);
+    if (!rules.length) return;
 
-  const endpoint = requestPath;
-
-  const result = await evaluateRateLimit({
-    rules,
-    identifier: req.ip,
-    endpoint,
-    method: req.method,
-    apiKeyId: req.apiKey.id,
-    environmentId: env.id,
-    now: Math.floor(Date.now() / 1000),
-  });
-
-  req.rateLimit = result;
-
-  req.log.info(
-    {
-      apiKeyId: req.apiKey.id,
-      userId,
-      environmentId: env.id,
-      endpoint,
+    const result = await evaluateRateLimit({
+      rules,
+      identifier: req.ip,
+      endpoint: requestPath,
       method: req.method,
-      allowed: result.allowed,
-      ruleId: result.ruleId || null,
-    },
-    "gateway rate limit decision"
-  );
+      apiKeyId: req.apiKey.id,
+      environmentId: env.id,
+      now: Math.floor(Date.now() / 1000),
+    });
 
-  if (!result.allowed) {
-    console.log(`[Enforcement Guard] BLOCKING request: ${req.method} ${req.url} from ${req.ip} (ruleId: ${result.ruleId})`);
-    reply
-      .code(429)
-      .header("Retry-After", result.retryAfter)
-      .send({
-        error: "Rate limit exceeded",
-        code: "RATE_LIMIT_EXCEEDED",
-        message: "Rate limit exceeded",
-        ruleId: result.ruleId,
-      });
-  } else {
-    console.log(`[Enforcement Guard] ALLOWED request: ${req.method} ${req.url} from ${req.ip}`);
+    req.rateLimit = result;
+    req.log.info(
+      {
+        apiKeyId: req.apiKey.id,
+        userId,
+        environmentId: env.id,
+        endpoint: requestPath,
+        method: req.method,
+        allowed: result.allowed,
+        ruleId: result.ruleId || null,
+      },
+      "gateway rate limit decision"
+    );
+
+    if (!result.allowed) {
+      return reply
+        .code(429)
+        .header("Retry-After", result.retryAfter)
+        .send({
+          error: "Rate limit exceeded",
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Rate limit exceeded",
+          ruleId: result.ruleId,
+          requestId: req.id,
+        });
+    }
+  } catch (error) {
+    throw new DatabaseError("Gateway enforcement failed.", {
+      cause: error,
+      details: { userId, environment, path: requestPath },
+    });
   }
 }
+

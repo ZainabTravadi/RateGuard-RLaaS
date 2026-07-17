@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +29,19 @@ interface Rule {
   tooltip: string;
 }
 
+type RuleScope = Rule["scope"];
+
+interface RuleApiItem {
+  id: string;
+  name: string;
+  description: string;
+  limit_count: number;
+  window_seconds: number;
+  scope: RuleScope;
+  endpoint: string | null;
+  enabled: boolean;
+}
+
 const windowOptions = [
   { value: "1s", label: "1 second", seconds: 1 },
   { value: "10s", label: "10 seconds", seconds: 10 },
@@ -56,7 +68,7 @@ export default function RulesPage() {
     description: "",
     limit: 100,
     window: "1m",
-    scope: "global" as "global" | "service" | "endpoint",
+    scope: "global" as RuleScope,
     endpoint: ""
   });
 
@@ -99,7 +111,7 @@ if (!environmentId) {
         }
 
         setRules(
-          data.map((r: any) => ({
+          data.map((r: RuleApiItem) => ({
             id: r.id,
             name: r.name,
             description: r.description,
@@ -457,7 +469,7 @@ if (!environmentId) {
                   <Select
                     value={rule.scope}
                     onValueChange={value =>
-                      updateRule(rule.id, { scope: value as any })
+                      updateRule(rule.id, { scope: value as RuleScope })
                     }
                     disabled={!rule.enabled}
                   >
@@ -587,7 +599,7 @@ if (!environmentId) {
                 <Select
                   value={newRule.scope}
                   onValueChange={v =>
-                    setNewRule({ ...newRule, scope: v as any })
+                    setNewRule({ ...newRule, scope: v as RuleScope })
                   }
                 >
                   {/* 🔥 Endpoint input (only when scope = endpoint) */}

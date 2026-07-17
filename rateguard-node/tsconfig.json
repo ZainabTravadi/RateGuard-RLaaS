@@ -1,18 +1,13 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-
-    "rootDir": "src",          // 🔥 THIS FIXES SRC OVERWRITES
-    "outDir": "dist",          // compiled output only here
-
-    "declaration": true,
-    "strict": true,
-
-    "moduleResolution": "node", // 🔥 NOT bundler
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": []
 }

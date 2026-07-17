@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
+import { Card } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -62,7 +61,6 @@ export default function LogsPage() {
       .then(([data, analytics]) => {
         if (!cancelled) {
           setLogs(Array.isArray(data) ? data : []);
-          console.log("FRONTEND ANALYTICS", analytics);
           setSummary(normalizeOverviewAnalytics(analytics));
           setError(null);
         }

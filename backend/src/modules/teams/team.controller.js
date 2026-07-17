@@ -2,7 +2,7 @@ import * as teamService from "./team.service.js";
 
 /* ===================== GET MEMBERS ===================== */
 
-export async function getTeamMembers(req, reply) {
+export async function getTeamMembers(req, _reply) {
   const userId = req.user.userId;
   const members = await teamService.getTeamMembers(userId);
   return members;
@@ -10,7 +10,7 @@ export async function getTeamMembers(req, reply) {
 
 /* ===================== INVITE MEMBER ===================== */
 
-export async function inviteMember(req, reply) {
+export async function inviteMember(req, _reply) {
   const userId = req.user.userId;
   const { email, role } = req.body;
 

@@ -1,5 +1,4 @@
 import { evaluate } from '../src/modules/enforcement/rateLimit.service.js';
-import { randomUUID } from 'crypto';
 
 // Simple load tester for RateLimitService (in-process)
 // Usage: node scripts/loadTest.js [requests] [concurrency]
@@ -47,7 +46,6 @@ async function runBatch(requests) {
 
   for (let b = 0; b < batches; b++) {
     const batchSize = Math.min(concurrency, totalRequests - b * concurrency);
-    /* eslint-disable no-await-in-loop */
     const batchRes = await runBatch(batchSize);
     allResults.push(...batchRes);
   }

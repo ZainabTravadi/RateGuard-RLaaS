@@ -1,48 +1,51 @@
 import { db } from "../../db/index.js";
-
-/* ===================== GET TEAM MEMBERS ===================== */
+import { DatabaseError, ValidationError } from "../../errors/index.js";
 
 export async function getTeamMembers(ownerId) {
-  const { rows } = await db.query(
-    `
-    SELECT
-      tm.id,
-      split_part(u.email, '@', 1) AS name,
-      u.email,
-      tm.role
-    FROM team_members tm
-    JOIN teams t ON t.id = tm.team_id
-    JOIN users u ON u.id = tm.user_id
-    WHERE t.owner_id = $1
-    ORDER BY tm.created_at
-    `,
-    [ownerId]
-  );
+  try {
+    const { rows } = await db.query(
+      `
+      SELECT
+        tm.id,
+        split_part(u.email, '@', 1) AS name,
+        u.email,
+        tm.role
+      FROM team_members tm
+      JOIN teams t ON t.id = tm.team_id
+      JOIN users u ON u.id = tm.user_id
+      WHERE t.owner_id = $1
+      ORDER BY tm.created_at
+      `,
+      [ownerId]
+    );
 
-  return rows;
+    return rows;
+  } catch (error) {
+    throw new DatabaseError("Failed to load team members.", {
+      cause: error,
+      details: { ownerId },
+    });
+  }
 }
 
-/* ===================== INVITE MEMBER ===================== */
-
 export async function inviteMember(ownerId, email, role) {
-  const userRes = await db.query(
-    `SELECT id, email FROM users WHERE email = $1`,
-    [email]
-  );
+  const normalizedEmail = email.toLowerCase().trim();
 
+  const userRes = await db.query(`SELECT id, email FROM users WHERE email = $1`, [normalizedEmail]);
   if (userRes.rowCount === 0) {
-    throw new Error("User must sign up first");
+    throw new ValidationError("User must sign up first.", {
+      details: { email: normalizedEmail },
+    });
   }
 
-  const teamRes = await db.query(
-    `SELECT id FROM teams WHERE owner_id = $1`,
-    [ownerId]
-  );
+  const teamRes = await db.query(`SELECT id FROM teams WHERE owner_id = $1`, [ownerId]);
+  if (!teamRes.rows[0]) {
+    throw new ValidationError("Team not found.", { details: { ownerId } });
+  }
 
   const teamId = teamRes.rows[0].id;
   const userId = userRes.rows[0].id;
 
-  // Prevent duplicate members
   const exists = await db.query(
     `
     SELECT 1 FROM team_members
@@ -52,7 +55,7 @@ export async function inviteMember(ownerId, email, role) {
   );
 
   if (exists.rowCount > 0) {
-    throw new Error("User already in team");
+    throw new ValidationError("User already in team.", { details: { ownerId, email: normalizedEmail } });
   }
 
   const insertRes = await db.query(
@@ -66,17 +69,15 @@ export async function inviteMember(ownerId, email, role) {
 
   return {
     id: insertRes.rows[0].id,
-    name: email.split("@")[0],
-    email,
+    name: normalizedEmail.split("@")[0],
+    email: normalizedEmail,
     role,
-    avatar: email.slice(0, 2).toUpperCase(),
+    avatar: normalizedEmail.slice(0, 2).toUpperCase(),
   };
 }
 
-/* ===================== UPDATE ROLE ===================== */
-
 export async function updateMemberRole(ownerId, memberId, role) {
-  await db.query(
+  const { rowCount } = await db.query(
     `
     UPDATE team_members
     SET role = $1
@@ -87,9 +88,13 @@ export async function updateMemberRole(ownerId, memberId, role) {
     `,
     [role, memberId, ownerId]
   );
-}
 
-/* ===================== REMOVE MEMBER ===================== */
+  if (!rowCount) {
+    throw new ValidationError("Member not found.", {
+      details: { ownerId, memberId },
+    });
+  }
+}
 
 export async function removeMember(ownerId, memberId) {
   const result = await db.query(
@@ -106,3 +111,4 @@ export async function removeMember(ownerId, memberId) {
 
   return result.rowCount;
 }
+

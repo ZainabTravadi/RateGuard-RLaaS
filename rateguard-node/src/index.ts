@@ -1,22 +1,94 @@
-import { initConfig } from "./config.js";
-import { middleware, limit } from "./middleware.js";
-
-// Export types for TypeScript users
+export { RateGuardClient } from "./client.js";
+export { RateGuard, RateGuardBuilder, createRateGuard } from "./rateguard.js";
+export { doctor } from "./doctor.js";
+export { createLogger, logDecision, timeLogger } from "./logger.js";
+export {
+  ObservabilityRegistry,
+  createOpenTelemetryPlugin,
+  createPrometheusPlugin,
+  createDatadogPlugin,
+  createSentryPlugin,
+  createNewRelicPlugin,
+  createElasticPlugin,
+  createGrafanaPlugin,
+  createBackendMetricsPlugin,
+  createPluginMetricsPlugin,
+  createSdkMetricsPlugin,
+  createRedisMetricsPlugin,
+  createCustomExporter,
+  createOpenTelemetryExporter,
+  createPrometheusExporter,
+  createDatadogExporter,
+  createGrafanaExporter,
+  createElasticExporter,
+  createNewRelicExporter,
+  createSentryExporter,
+  registerExporter,
+  registerMetric,
+  registerSpan,
+} from "./observability.js";
+export { PluginRegistry, createPluginRegistry, createPluginServices } from "./plugins.js";
+export { PolicyBuilder, PolicyCompiler, compilePolicy, createPolicyCompiler, createPolicyTemplate, getPolicyTemplate, listPolicyTemplates, simulatePolicy } from "./policy.js";
 export type {
-  RateLimitResponse,
-  RateLimitResult,
-  MiddlewareOptions,
-  LimitOptions,
-  LimitCallOptions,
+  RateGuardContext,
+  RateGuardPolicyDefinition,
+  RateGuardPolicyCondition,
+  RateGuardPolicyConditionGroup,
+  RateGuardPolicyRule,
+  RateGuardPolicyStrategy,
+  RateGuardPolicyLogic,
+  RateGuardCompiledPolicy,
+  RateGuardCompiledPolicyRule,
+  RateGuardPolicyDiff,
+  RateGuardPolicySimulationResult,
+  RateGuardPolicyCompilationWarning,
+  RateGuardPolicyResult,
+  RateGuardPlugin,
+  RateGuardPluginContext,
+  RateGuardLifecycleContext,
+  RateGuardIdentifierResolver,
+  RateGuardEndpointResolver,
+  RateGuardMethodResolver,
+  RateGuardHookName,
+  RateGuardLogLevel,
+  RateGuardPluginMetadata,
+  RateGuardPluginRegistration,
+  RateGuardPluginServices,
+  RateGuardPluginCommand,
+  RateGuardStorageAdapter,
+  FailMode,
+  RateGuardClientOptions,
+  RateGuardLimitOptions,
+  RateGuardProgrammaticLimitOptions,
+  RateGuardLogger,
   RateGuardMiddleware,
+  RateGuardMiddlewareOptions,
+  RateGuardBuilderOptions,
+  RateGuardRequestOptions,
+  RateGuardTransport,
+  RateGuardTransportRequest,
+  RateGuardTransportResponse,
+  RateLimitResult,
+  RateGuardHealthStatus,
+  RateGuardAnalyticsSummary,
 } from "./types.js";
-export type { RateGuardInitConfig } from "./config.js";
-export { RateLimitError } from "./errors.js";
+export type { RateGuardInitOptions } from "./rateguard.js";
+export {
+  RateGuardError,
+  AuthenticationError,
+  AuthorizationError,
+  ValidationError,
+  ConfigurationError,
+  NetworkError,
+  TimeoutError,
+  RateLimitExceededError,
+  InternalServerError,
+  RedisError,
+  DatabaseError,
+  MigrationError,
+  TransportError,
+  isRateGuardError,
+  serializeError,
+  formatError,
+} from "./errors.js";
 export { SDK_VERSION } from "./version.js";
-
-// Main API
-export const RateGuard = {
-  init: initConfig,
-  middleware,
-  limit,
-};

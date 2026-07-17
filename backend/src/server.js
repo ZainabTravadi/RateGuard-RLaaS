@@ -1,28 +1,36 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { ensureDatabase } from "./db/bootstrap.js";
-import { getRedis, getRedisHealth } from "./redis/client.js";
+import { getRedis, getRedisHealth, closeRedis } from "./redis/client.js";
+import { serializeError } from "./errors/index.js";
 
-try {
-  // Make sure required tables exist before we start listening
-  console.log("🔄 Initializing database...");
+async function start() {
   await ensureDatabase();
-  console.log("✅ Database initialized");
 
-  // Warm up Redis or fall back to the development mock
-  console.log("🔄 Initializing Redis...");
-  await getRedis();
-  const redisHealth = await getRedisHealth();
-  console.log(`✅ Redis initialized: ${JSON.stringify(redisHealth)}`);
+  if (env.REDIS_URL) {
+    await getRedis();
+    await getRedisHealth();
+  }
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
-  console.log(`🚀 RateGuard backend running at http://localhost:${env.PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${env.PORT}/...`);
-  console.log(`🔐 Enforcement: POST http://localhost:${env.PORT}/v1/check`);
-  console.log(`🩺 Redis Debug: GET http://localhost:${env.PORT}/debug/redis`);
-  console.log(`🩺 Redis Health: GET http://localhost:${env.PORT}/debug/redis/health`);
-} catch (err) {
-  console.error("❌ Failed to start RateGuard backend", err);
-  process.exit(1);
+  app.log.info({ port: env.PORT, failMode: env.RATE_LIMIT_FAIL_MODE }, "RateGuard backend running");
 }
+
+process.on("SIGINT", async () => {
+  await closeRedis().catch(() => undefined);
+  await app.close().catch(() => undefined);
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await closeRedis().catch(() => undefined);
+  await app.close().catch(() => undefined);
+  process.exit(0);
+});
+
+start().catch((error) => {
+  const serialized = serializeError(error);
+  console.error(JSON.stringify(serialized, null, 2));
+  process.exit(1);
+});
 

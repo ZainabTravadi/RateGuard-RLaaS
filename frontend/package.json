@@ -2,6 +2,27 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "0.0.0",
+  "description": "RateGuard dashboard frontend.",
+  "keywords": [
+    "rateguard",
+    "dashboard",
+    "react",
+    "vite",
+    "analytics"
+  ],
+  "homepage": "https://rateguard.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RateGuard/rateguard.git",
+    "directory": "frontend"
+  },
+  "bugs": {
+    "url": "https://github.com/RateGuard/rateguard/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/RateGuard"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

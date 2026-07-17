@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, Shield, Server, Ban, TrendingUp, Clock, AlertCircle, Zap } from "lucide-react";
+import { Activity, Shield, Server, Ban, TrendingUp, AlertCircle, Zap } from "lucide-react";
 import { StatCard, StatusBadge, Card, CardHeader, CardTitle } from "@/components/ui/stat-card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { api } from "@/lib/api";
@@ -66,7 +66,6 @@ export default function OverviewPage() {
           setError(overviewResponse.message || "Failed to fetch data");
         }
 
-        console.log("FRONTEND ANALYTICS", analyticsResponse);
         setAnalyticsSummary(normalizeOverviewAnalytics(analyticsResponse));
       } catch (err) {
         console.error("Error fetching overview data:", err);
@@ -221,7 +220,7 @@ export default function OverviewPage() {
             title="System Uptime"
             value={`${data.performance.uptime_percentage}%`}
             change="last 30 days"
-            changeType={data.performance.uptime_percentage >= 99.9 ? "positive" : "warning"}
+            changeType={data.performance.uptime_percentage >= 99.9 ? "positive" : "negative"}
             icon={TrendingUp}
             iconColor="text-success"
           />

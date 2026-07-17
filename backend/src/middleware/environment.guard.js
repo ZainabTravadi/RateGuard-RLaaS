@@ -1,17 +1,21 @@
-// src/middleware/environment.guard.js
 import { db } from "../db/index.js";
+import { AuthorizationError, DatabaseError, ValidationError } from "../errors/index.js";
 
-export async function environmentGuard(req, reply) {
-  const userId = req.user.userId;
+export async function environmentGuard(req) {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new AuthorizationError("Authentication required.", {
+      documentationURL: "https://rateguard.dev/docs/security",
+    });
+  }
+
+  const headerEnv = req.headers["x-environment-id"];
+  if (headerEnv) {
+    req.environment = { id: String(headerEnv) };
+    return;
+  }
 
   try {
-    // Optional future support
-    const headerEnv = req.headers["x-environment-id"];
-    if (headerEnv) {
-      req.environment = { id: headerEnv };
-      return;
-    }
-
     const { rows } = await db.query(
       `
       SELECT id
@@ -25,20 +29,23 @@ export async function environmentGuard(req, reply) {
     );
 
     if (!rows.length) {
-      console.error("❌ No active environment for user", userId);
-      return reply.code(400).send({
-        error: "No active environment found",
-        code: "NO_ACTIVE_ENVIRONMENT",
+      throw new ValidationError("No active environment found for this account.", {
+        details: { userId },
+        documentationURL: "https://rateguard.dev/docs/troubleshooting",
       });
     }
 
     req.environment = { id: rows[0].id };
-    console.log("✅ Environment resolved:", rows[0].id);
-  } catch (err) {
-    console.error("❌ Environment guard failed:", err);
-    reply.code(500).send({
-      error: "Environment resolution failed",
-      code: "ENVIRONMENT_RESOLUTION_FAILED",
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+
+    throw new DatabaseError("Failed to resolve environment.", {
+      cause: error,
+      details: { userId },
+      documentationURL: "https://rateguard.dev/docs/errors",
     });
   }
 }
+

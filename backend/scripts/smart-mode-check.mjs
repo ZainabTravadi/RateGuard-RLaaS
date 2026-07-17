@@ -17,7 +17,6 @@ if (!rows.length) {
 const rule = rows[0];
 const results = [];
 for (let index = 0; index < 6; index += 1) {
-  // eslint-disable-next-line no-await-in-loop
   const result = await evaluate({
     rules: [rule],
     identifier,

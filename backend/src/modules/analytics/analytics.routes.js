@@ -1,9 +1,12 @@
 import { requireAuth } from "../auth/auth.guard.js";
 import {
-  getApiKeyStats,
   getTimeSeriesAnalytics,
   getAllowedVsBlocked,
-  getTopEndpoints
+  getTopEndpoints,
+  getTrafficHeatmap,
+  getTopAttackers,
+  getTopApiKeys,
+  getThreatSignals
 } from "./analytics.service.js";
 import { getCompleteOverview } from "../overview/overview.service.js";
 
@@ -14,9 +17,7 @@ export async function analyticsRoutes(app) {
     // overview must be scoped to the authenticated user and accept an optional range
     const { range = "30d" } = req.query || {};
     const userId = req.user.userId;
-    const analyticsData = await getCompleteOverview(userId, range);
-    console.log("ANALYTICS RESPONSE", analyticsData);
-    return analyticsData;
+    return getCompleteOverview(userId, range);
   });
 
   app.get("/analytics/endpoints", async (req) => {
@@ -26,11 +27,32 @@ export async function analyticsRoutes(app) {
     return { endpoints };
   });
 
+  app.get("/analytics/heatmap", async (req) => {
+    const { range = "30d" } = req.query || {};
+    const userId = req.user.userId;
+    const heatmap = await getTrafficHeatmap(userId, range);
+    return { heatmap };
+  });
+
+  app.get("/analytics/attackers", async (req) => {
+    const { range = "30d", limit = 10 } = req.query || {};
+    const userId = req.user.userId;
+    const attackers = await getTopAttackers(userId, range, Number(limit) || 10);
+    return { attackers };
+  });
+
   app.get("/analytics/apikeys", async (req) => {
     const { limit = 10 } = req.query || {};
     const userId = req.user.userId;
-    const apiKeys = await getApiKeyStats(userId, { limit: Number(limit) || 10 });
+    const apiKeys = await getTopApiKeys(userId, "30d", Number(limit) || 10);
     return { apiKeys };
+  });
+
+  app.get("/analytics/threats", async (req) => {
+    const { range = "30d" } = req.query || {};
+    const userId = req.user.userId;
+    const threats = await getThreatSignals(userId, range);
+    return threats;
   });
 
   app.get("/analytics", async (req) => {
@@ -50,7 +72,6 @@ export async function analyticsRoutes(app) {
         allowedVsBlocked,
         topEndpoints
       };
-      console.log("ANALYTICS RESPONSE", analyticsData);
       return analyticsData;
     } catch (err) {
       app.log.error(err);

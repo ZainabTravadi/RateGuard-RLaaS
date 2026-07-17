@@ -20,7 +20,6 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
   const [step, setStep] = useState<"otp" | "password">("otp");
 
   const passwordValidation = validatePassword(password);
@@ -56,7 +55,6 @@ export default function ResetPasswordPage() {
         throw new Error(errorData || "Invalid OTP");
       }
 
-      setOtpVerified(true);
       setStep("password");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to verify OTP");
