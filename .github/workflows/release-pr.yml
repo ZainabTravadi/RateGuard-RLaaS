@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +22,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install
+          cache-dependency-path: package-lock.json
+      - run: npm ci
       - uses: changesets/action@v1
         with:
           version: npm run version
