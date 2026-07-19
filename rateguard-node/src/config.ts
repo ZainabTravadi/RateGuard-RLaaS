@@ -12,7 +12,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function defaultBaseURL() {
-  return process.env.RATEGUARD_BASE_URL || process.env.RATEGUARD_URL || "https://api.rateguard.dev";
+  return process.env.RATEGUARD_BASE_URL || process.env.RATEGUARD_URL || "https://rateguard-7b9988e4d5f5.herokuapp.com";
 }
 
 export interface ResolvedRateGuardConfig {
@@ -170,4 +170,3 @@ export function createTransportError(message: string, cause: unknown, backend: s
     documentationURL: "https://rateguard.dev/docs/troubleshooting",
   });
 }
-

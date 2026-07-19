@@ -26,7 +26,7 @@ import {
 | Option | Type | Description |
 | --- | --- | --- |
 | `apiKey` | `string` | Required API key |
-| `baseURL` | `string` | Backend URL, defaults to `RATEGUARD_BASE_URL`, `RATEGUARD_URL`, or `https://api.rateguard.dev` |
+| `baseURL` | `string` | Backend URL, defaults to `RATEGUARD_BASE_URL`, `RATEGUARD_URL`, or `https://rateguard-7b9988e4d5f5.herokuapp.com` |
 | `timeout` | `number` | Request timeout in milliseconds |
 | `retries` | `number` | Number of retry attempts |
 | `retryDelayMs` | `number` | Base retry delay in milliseconds |
@@ -65,7 +65,7 @@ import {
 ```ts
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .timeout(5000)
   .retry(2, 150)
   .failMode("failClosed")
@@ -93,7 +93,7 @@ import { RateGuardClient } from "@rateguard/node";
 
 const client = new RateGuardClient({
   apiKey: process.env.RATEGUARD_API_KEY ?? "",
-  baseURL: process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000",
+  baseURL: process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com",
 });
 
 const result = await client.check({
@@ -157,7 +157,7 @@ The `RateGuard` wrapper combines the client with local policy storage, plugins, 
 ```ts
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .build();
 
 const decision = await guard.check({

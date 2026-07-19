@@ -2,7 +2,7 @@ import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 import { createApiKey } from '../src/modules/api-keys/apiKeys.service.js';
 
-const baseUrl = 'http://127.0.0.1:4000';
+const baseUrl = process.env.BACKEND_URL || 'https://rateguard-7b9988e4d5f5.herokuapp.com';
 const userId = '930f8b1b-029b-4285-aecf-63b5b8335d60';
 const endpoint = '/api/pdf-to-txt';
 const identifier = '10.0.0.45';

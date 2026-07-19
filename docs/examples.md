@@ -78,7 +78,7 @@ Runs a health and configuration audit.
 ### Example
 
 ```bash
-npx rateguard doctor --api-key rg_live_xxx --base-url http://localhost:4000
+npx rateguard doctor --api-key rg_live_xxx --base-url https://rateguard-7b9988e4d5f5.herokuapp.com
 ```
 
 ### Expected Output
@@ -115,7 +115,7 @@ Stores credentials in `.rateguard.json`.
 ### Example
 
 ```bash
-npx rateguard login --api-key rg_live_xxx --base-url http://localhost:4000
+npx rateguard login --api-key rg_live_xxx --base-url https://rateguard-7b9988e4d5f5.herokuapp.com
 ```
 
 ### Expected Output

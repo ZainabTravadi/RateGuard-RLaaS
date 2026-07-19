@@ -102,7 +102,7 @@ const app = express();
 
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com/")
   .timeout(5000)
   .retry(2, 150)
   .failMode("shadowMode")
@@ -184,8 +184,8 @@ npx rateguard doctor
 
 ```bash
 npx rateguard init
-npx rateguard login --api-key rg_live_xxx --base-url http://localhost:4000
-npx rateguard doctor --api-key rg_live_xxx --base-url http://localhost:4000
+npx rateguard login --api-key rg_live_xxx --base-url https://rateguard-7b9988e4d5f5.herokuapp.com
+npx rateguard doctor --api-key rg_live_xxx --base-url https://rateguard-7b9988e4d5f5.herokuapp.com
 npx rateguard policy validate --policy rateguard.policy.json
 npx rateguard simulate --policy rateguard.policy.json --identifier user_123 --endpoint /login --method POST
 npx rateguard analytics --range 7d
@@ -194,20 +194,6 @@ npx rateguard export --output rateguard.export.json
 npx rateguard import --input rateguard.export.json
 npx rateguard migrate
 ```
-
-## Framework Support
-
-| Framework | Package | Adapter Type | Notes |
-| --- | --- | --- | --- |
-| Express | `@rateguard/express` | `RequestHandler` | Middleware, health handler, and error handler helpers |
-| Fastify | `@rateguard/fastify` | `onRequest` hook | Middleware and health route registration |
-| NestJS | `@rateguard/nest` | Middleware / guard | Injectable middleware and `CanActivate` guard |
-| Next.js | `@rateguard/next` | Middleware function | Returns `NextResponse` |
-| Koa | `@rateguard/koa` | Middleware | Sets rate-limit headers and blocks with `429` |
-| Hono | `@rateguard/hono` | Middleware | Edge-friendly request handling |
-| Bun | `@rateguard/bun` | Request handler | Returns `Response` objects |
-| Deno | `@rateguard/deno` | Request handler | Returns `Response` objects |
-| Cloudflare | `@rateguard/cloudflare` | Worker handler | Edge runtime support |
 
 ## Why RateGuard?
 

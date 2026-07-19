@@ -59,7 +59,7 @@ async function loadConfig(ctx: CLIContext) {
 }
 
 function resolveBaseURL(args: Record<string, string | boolean>, config?: Record<string, unknown> | null) {
-  return String((args["base-url"] || config?.baseURL || config?.baseUrl || process.env.RATEGUARD_BASE_URL || "https://api.rateguard.dev") as string);
+  return String((args["base-url"] || config?.baseURL || config?.baseUrl || process.env.RATEGUARD_BASE_URL || "https://rateguard-7b9988e4d5f5.herokuapp.com") as string);
 }
 
 function resolveApiKey(args: Record<string, string | boolean>, config?: Record<string, unknown> | null) {
@@ -85,7 +85,7 @@ async function ensureConfig(ctx: CLIContext) {
   if (config) return config;
   const initial = {
     apiKey: "",
-    baseURL: "https://api.rateguard.dev",
+    baseURL: "https://rateguard-7b9988e4d5f5.herokuapp.com",
     tenantId: "",
     policyPath: "rateguard.policy.json",
   };
@@ -101,7 +101,7 @@ async function cmdInit(ctx: CLIContext) {
 
   await writeJson(ctx.configPath, {
     apiKey: "",
-    baseURL: "https://api.rateguard.dev",
+    baseURL: "https://rateguard-7b9988e4d5f5.herokuapp.com",
     tenantId: "",
     policyPath: "rateguard.policy.json",
     createdAt: new Date().toISOString(),

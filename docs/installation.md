@@ -65,7 +65,7 @@ import { RateGuard } from "@rateguard/node";
 
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .build();
 
 const health = await guard.health();

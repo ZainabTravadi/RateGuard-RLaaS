@@ -39,7 +39,7 @@ export default function DocsPage() {
       number: "2",
       title: "Configure Environment Variables",
       code: `RATEGUARD_API_KEY=your_api_key_here
-RATEGUARD_BASE_URL=http://localhost:4000`,
+RATEGUARD_BASE_URL=https://rateguard-7b9988e4d5f5.herokuapp.com`,
       description: "Create a .env file with your API key and backend URL"
     },
     {
@@ -58,7 +58,7 @@ dotenv.config();
 
 const rateGuard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .build();
 
 const app = express();
@@ -108,7 +108,7 @@ app.listen(PORT);`,
     },
     {
       question: "Can I test rate limiting locally?",
-      answer: "Yes! Use http://localhost:4000 for RATEGUARD_BASE_URL during local development. In production, use your deployed backend URL. Both environments can have different API keys."
+      answer: "Yes! Use http://localhost:4000 for RATEGUARD_BASE_URL during local development. In production, use https://rateguard-7b9988e4d5f5.herokuapp.com. Both environments can have different API keys."
     },
     {
       question: "Why aren't my rules applying?",
@@ -249,7 +249,7 @@ app.listen(PORT);`,
                 </div>
                 <div>
                   <p className="font-mono text-primary mb-1">RATEGUARD_BASE_URL</p>
-                  <p className="text-muted-foreground">Local: http://localhost:4000 | Production: your deployed backend URL</p>
+                  <p className="text-muted-foreground">Local: http://localhost:4000 for a local backend | Production: https://rateguard-7b9988e4d5f5.herokuapp.com</p>
                 </div>
               </div>
             </Card>

@@ -15,5 +15,5 @@ export function getApiBaseUrl() {
     return window.__RATEGUARD_API_URL;
   }
 
-  return "http://localhost:4000";
+  return "https://rateguard-7b9988e4d5f5.herokuapp.com";
 }

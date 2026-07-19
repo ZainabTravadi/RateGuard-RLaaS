@@ -23,7 +23,7 @@ import { RateGuard, createExpressMiddleware } from "@rateguard/express";
 const app = express();
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .build();
 
 app.use(createExpressMiddleware(guard, { failMode: "warnOnly" }));

@@ -94,7 +94,7 @@ export const env = {
   RATE_LIMIT_FAIL_OPEN: process.env.RATE_LIMIT_FAIL_MODE
     ? process.env.RATE_LIMIT_FAIL_MODE === "failOpen"
     : String(process.env.RATE_LIMIT_FAIL_OPEN).toLowerCase() !== "false",
-  API_URL: process.env.API_URL ? String(process.env.API_URL).trim() : `http://localhost:${process.env.PORT || 4000}`,
+  API_URL: process.env.API_URL ? String(process.env.API_URL).trim() : "https://rateguard-7b9988e4d5f5.herokuapp.com",
   DEFAULT_ENV_BASE_URL: process.env.DEFAULT_ENV_BASE_URL ? String(process.env.DEFAULT_ENV_BASE_URL).trim() : "http://localhost:3000",
   DEFAULT_DEV_ENV_BASE_URL: process.env.DEFAULT_DEV_ENV_BASE_URL ? String(process.env.DEFAULT_DEV_ENV_BASE_URL).trim() : "http://localhost:3001",
   EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || "console",

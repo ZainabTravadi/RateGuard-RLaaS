@@ -2,7 +2,7 @@ import express from 'express';
 import { RateGuard } from '../dist/index.js';
 
 const apiKey = process.env.RATEGUARD_API_KEY;
-const baseUrl = process.env.RATEGUARD_URL || 'http://127.0.0.1:4000';
+const baseUrl = process.env.RATEGUARD_URL || 'https://rateguard-7b9988e4d5f5.herokuapp.com';
 const port = Number(process.env.PORT || 3001);
 
 if (!apiKey) {

@@ -71,7 +71,7 @@ const logger = createLogger({
 ```ts
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .transport({
     async send(request) {
       const response = await fetch(request.url, {
@@ -98,7 +98,7 @@ import { createPrometheusPlugin } from "@rateguard/node";
 
 const guard = RateGuard.builder()
   .apiKey(process.env.RATEGUARD_API_KEY ?? "")
-  .baseURL(process.env.RATEGUARD_BASE_URL ?? "http://localhost:4000")
+  .baseURL(process.env.RATEGUARD_BASE_URL ?? "https://rateguard-7b9988e4d5f5.herokuapp.com")
   .plugin(createPrometheusPlugin({ serviceName: "api" }))
   .build();
 ```
@@ -125,7 +125,7 @@ process.on("SIGTERM", async () => {
 
 ```bash
 npx rateguard init
-npx rateguard login --api-key rg_live_xxx --base-url http://localhost:4000
+npx rateguard login --api-key rg_live_xxx --base-url https://rateguard-7b9988e4d5f5.herokuapp.com
 npx rateguard policy validate --policy rateguard.policy.json
 npx rateguard simulate --policy rateguard.policy.json --identifier user_123 --endpoint /login --method POST
 npx rateguard doctor

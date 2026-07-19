@@ -14,7 +14,7 @@
 
 import axios from 'axios';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://rateguard-7b9988e4d5f5.herokuapp.com';
 const API_KEY = process.env.RATEGUARD_API_KEY || 'rg_test_key_12345';
 
 console.log('🧪 RateGuard End-to-End Test');

@@ -141,7 +141,7 @@ http {
     status: "available",
     codeExample: `// Check rate limit before processing request
 const response = await fetch(
-    "http://localhost:4000/v1/check",
+    "https://rateguard-7b9988e4d5f5.herokuapp.com/v1/check",
   {
     method: "POST",
     headers: {

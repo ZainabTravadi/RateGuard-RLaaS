@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 
-const baseUrl = 'http://127.0.0.1:4000';
+const baseUrl = process.env.BACKEND_URL || 'https://rateguard-7b9988e4d5f5.herokuapp.com';
 const secret = process.env.JWT_SECRET || 'supersecretdevkey';
 const token = jwt.sign({ userId: '930f8b1b-029b-4285-aecf-63b5b8335d60' }, secret, { expiresIn: '1h' });
 
