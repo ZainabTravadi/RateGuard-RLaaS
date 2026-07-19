@@ -1,6 +1,6 @@
 {
   "name": "@rateguard/node",
-  "version": "0.1.8",
+  "version": "1.0.0",
   "description": "Firebase-style rate limiting SDK powered by RateGuard",
   "keywords": [
     "rate-limit",
