@@ -1,4 +1,12 @@
-# RateGuard
+<p align="center">
+  <img src="logo.png" width="380" alt="RateGuard Logo">
+</p>
+
+<h1 align="center">RateGuard</h1>
+
+<p align="center">
+  <strong>He says nothing. He notices every token.</strong>
+</p>
 
 <p align="center">
   <strong>Centralized rate limiting for Node.js applications.</strong><br />
